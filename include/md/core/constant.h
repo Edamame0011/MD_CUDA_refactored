@@ -2,8 +2,8 @@
 #define CONSTANT_H
 
 namespace md {
-    constexpr float boltzmann_constant = 8.617333262145e-5;
-    constexpr float conversion_factor = 0.964855e-2;
+    extern float boltzmann_constant;
+    extern float conversion_factor;
 }
 
 #endif

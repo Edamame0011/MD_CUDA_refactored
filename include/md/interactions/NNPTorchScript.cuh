@@ -119,7 +119,7 @@ namespace md::interactions {
     template <typename CellType>      
     class NNPTorchScript : public Interaction {
     public:
-        NNPTorchScript(State& state, CellType _cell, md::utils::NeighbourList *_NL, const std::string& model_path) : cell(_cell), NL(_NL) {
+        NNPTorchScript(State& state, CellType &_cell, md::utils::NeighbourList *_NL, const std::string& model_path) : cell(_cell), NL(_NL) {
             int N = state.n_atoms;
             d_valid_indices.resize(N * N, 0);
             d_edge_weight.resize(3 * N * N, 0);
@@ -290,7 +290,7 @@ namespace md::interactions {
         md::utils::NeighbourList *NL;
 
         // 周期境界条件
-        CellType cell;
+        CellType &cell;
     };
 }
 

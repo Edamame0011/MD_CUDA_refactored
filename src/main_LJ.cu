@@ -1,7 +1,7 @@
 #include <md/core/State.cuh>
 #include <md/core/Simulator.cuh>
 #include <md/integrators/ConstantVolume.cuh>
-#include <md/interactions/NNPTorchScript.cuh>
+#include <md/interactions/LJPotential.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
 #include <md/cells/CubicCell.cuh>
@@ -18,6 +18,7 @@ int main() {
 
     const std::string data_path = "./data/sample_NS2.xyz";
     const std::string model_path = "./models/deployed_model_Na2O-SiO2.pt";
+    const std::string json_path = "./configs/example.json";
 
     std::mt19937 mt(123456789);
     md::State state;
@@ -37,7 +38,7 @@ int main() {
     NL.generate(state, cell);
 
     // 相互作用ポテンシャルの初期化
-    md::interactions::NNPTorchScript interaction(state, cell, &NL, model_path);
+    md::interactions::LJPotential interaction = md::utils::initialize::init_LJPotential_from_json(json_path, state, cell, &NL);
 
     // 熱浴の初期化
     md::thermostats::NoThermostat no_thermostat;

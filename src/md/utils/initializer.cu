@@ -1,4 +1,5 @@
-#include <md/core/Initializer.cuh>
+#include <md/utils/initialize.cuh>
+
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
 
@@ -93,9 +94,9 @@ namespace {
         };
 }
 
-using namespace md;
+using namespace md::utils;
 
-void Initializer::read_state_from_xyz(State& state, const std::string& path) {
+void initialize::read_state_from_xyz(State& state, const std::string& path) {
     std::ifstream file(path);
 
     if(!file.is_open()) {
@@ -155,7 +156,7 @@ void Initializer::read_state_from_xyz(State& state, const std::string& path) {
     std::cout << "原子数：" << num_atoms << std::endl;
 }
 
-std::array<std::array<float, 3>, 3> Initializer::find_lattice_from_xyz(const std::string& path) {
+std::array<std::array<float, 3>, 3> initialize::find_lattice_from_xyz(const std::string& path) {
     std::ifstream file(path);
 
     if(!file.is_open()) {
@@ -181,7 +182,7 @@ std::array<std::array<float, 3>, 3> Initializer::find_lattice_from_xyz(const std
     return lattice;
 }
 
-void Initializer::init_velocities(State& state, float temperature, std::mt19937& mt) {
+void initialize::init_velocities(State& state, float temperature, std::mt19937& mt) {
     // デバイスから質量を転送
     thrust::host_vector<float> masses = state.d_masses;
     // 平均0、分散1のガウス分布
