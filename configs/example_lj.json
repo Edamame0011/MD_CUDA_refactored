@@ -16,7 +16,7 @@
 
     "output": {
         "type": "linear", 
-        "output_interval": 100
+        "output_interval": 1000
     }, 
 
     "atoms": {
