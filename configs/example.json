@@ -1,11 +1,39 @@
 {
-    "name": "test", 
-    
-    "simulation_params": {
-        "boltzmann_constant": 8.617333262145e-5,
-        "conversion_factor": 0.964855e-2,
+    "meta": {
+        "name": "test", 
+        "unit": "metal"
+    }, 
+
+    "simulation": {
         "dt": 0.5, 
-        "cutoff": 2.0, 
-        "margin": 1.0
+        "simulation_time": 5e+3, 
+        "cell_type": "cubic", 
+        "ensemble": {
+            "type": "NVE", 
+            "temperature": 300.0
+        }
+    }, 
+
+    "output": {
+        "type": "linear", 
+        "output_interval": 100
+    }, 
+
+    "atoms": {
+        "mode": "from_file", 
+        "format": "xyz", 
+        "path": "./data/sample_NS2.xyz"
+    }, 
+
+    "interactions": {
+        "neighbour_list": {
+            "cutoff": 5.0, 
+            "margin": 1.0
+        }, 
+
+        "potentials": {
+            "type": "NNP_TorchScript", 
+            "model_path": "./models/deployed_model_Na2O-SiO2.pt"
+        }
     }
 }

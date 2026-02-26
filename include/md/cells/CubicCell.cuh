@@ -8,6 +8,7 @@ namespace md::cells {
         float Lbox;
 
         CubicCell(float _Lbox) : Lbox(_Lbox) {}
+        CubicCell() : CubicCell(0.0f) {}
 
         void apply_pbc(State& state) const;
         __device__ __host__ void apply_pbc(float& x, float& y, float& z) const {
@@ -16,6 +17,10 @@ namespace md::cells {
             x -= Lbox * floorf(x * Linv + 0.5f);
             y -= Lbox * floorf(y * Linv + 0.5f);
             z -= Lbox * floorf(z * Linv + 0.5f);
+        }
+
+        void init (float _Lbox) {
+            this->Lbox = _Lbox;
         }
     };
 }

@@ -5,6 +5,7 @@
 #include <md/interactions/Interaction.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 #include <external/nlohmann/json.hpp>
 #include <algorithm>
@@ -68,7 +69,7 @@ namespace {
         num_species(_num_species), 
         cell(_cell) {}
 
-        __host__ __device__ void operator() (int idx) {
+        __device__ void operator() (int idx) {
             int i = idx / num_atoms;
             int j = idx % num_atoms;
 
@@ -87,9 +88,9 @@ namespace {
             const float y2 = d_y[j];
             const float z2 = d_z[j];
 
-            const float dx = x1 - x2;
-            const float dy = y1 - y2;
-            const float dz = z1 - z2;
+            float dx = x1 - x2;
+            float dy = y1 - y2;
+            float dz = z1 - z2;
 
             cell.apply_pbc(dx, dy, dz);
 
@@ -167,9 +168,9 @@ namespace {
             const float y2 = d_y[j];
             const float z2 = d_z[j];
 
-            const float dx = x1 - x2;
-            const float dy = y1 - y2;
-            const float dz = z1 - z2;
+            float dx = x1 - x2;
+            float dy = y1 - y2;
+            float dz = z1 - z2;
 
             cell.apply_pbc(dx, dy, dz);
 
@@ -184,7 +185,10 @@ namespace {
             const float rij1 = sqrtf(dist_sq);
             const float sij1 = sigma[si * num_species + sj];
 
-            return LJpotential(rij1, sij1) - LJpotential(r_c, sij1) - deriv_1st_LJpotential(r_c, sij1) * (rij1 - r_c);
+            float potential = LJpotential(rij1, sij1) - LJpotential(r_c, sij1) - deriv_1st_LJpotential(r_c, sij1) * (rij1 - r_c);
+            potential *= epsilon[si * num_species + sj];
+
+            return potential;
         }
     };
 }
@@ -212,8 +216,8 @@ namespace md::interactions {
             void forward(State& state) override {                
                 // 力の計算
                 thrust::for_each(
-                    NL->d_valid_indices().begin(), 
-                    NL->d_valid_indices().end(), 
+                    NL->get_valid_indices().begin(), 
+                    NL->get_valid_indices().end(), 
                     CalcForce(
                         thrust::raw_pointer_cast(state.d_positions.x.data()), 
                         thrust::raw_pointer_cast(state.d_positions.y.data()), 
@@ -233,8 +237,8 @@ namespace md::interactions {
 
                 // ポテンシャルの計算
                 state.potential_energy = thrust::transform_reduce(
-                    NL->d_valid_indices().begin(), 
-                    NL->d_valid_indices().end(), 
+                    NL->get_valid_indices().begin(), 
+                    NL->get_valid_indices().end(), 
                     CalcPotential(
                         thrust::raw_pointer_cast(state.d_positions.x.data()), 
                         thrust::raw_pointer_cast(state.d_positions.y.data()), 
@@ -266,33 +270,18 @@ namespace md::interactions {
 
 namespace md::utils::initialize {
     template <typename CellType>
-    md::interactions::LJPotential<CellType> init_LJPotential_from_json(std::string json_path, State &state, CellType &cell, NeighbourList *NL) {
-        using json = nlohmann::json;
-        using string = std::string;
-
-        std::ifstream f(json_path);
-        if (!f.is_open()) {
-            throw std::runtime_error("jsonファイルの読み込みに失敗しました。" );
-        }
-
-        json data = json::parse(f);
-
-        if (!data.contains("lennard_jones")) {
-            throw std::runtime_error("LJポテンシャルの設定が見つかりません。" );
-        }
-
-        auto lj_data = data["lennard_jones"];
-
+    md::interactions::LJPotential<CellType> init_LJPotential_from_json(nlohmann::json& json, State &state, CellType &cell, NeighbourList *NL) {
         // データの読み込み
-        std::vector<float> sigma = lj_data.at("sigma").get<std::vector<float>>();
-        std::vector<float> epsilon = lj_data.at("epsilon").get<std::vector<float>>();
-        std::vector<float> cutoff = lj_data.at("cutoff").get<std::vector<float>>();
-        std::vector<int> numbers = lj_data.at("numbers").get<std::vector<int>>();
+        std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
+        std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();
+        std::vector<float> cutoff = json.at("cutoff").get<std::vector<float>>();
+        std::vector<int> numbers = json.at("numbers").get<std::vector<int>>();
 
         int num_species = numbers.size();
 
         // GPUからデータ転送
-        std::vector<int> atomic_numbers = state.d_atomic_numbers;
+        thrust::host_vector<int64_t> h_atomic_numbers = state.d_atomic_numbers;
+        std::vector<int> atomic_numbers(h_atomic_numbers.begin(), h_atomic_numbers.end());
 
         // identifierの作成
         std::vector<int> identifier;

@@ -10,6 +10,8 @@
 #include <iomanip>
 
 #include <thrust/host_vector.h>
+#include <algorithm>
+#include <external/nlohmann/json.hpp>
 
 namespace {
     //文字列からLatticeを見つける
@@ -96,7 +98,7 @@ namespace {
 
 using namespace md::utils;
 
-void initialize::read_state_from_xyz(State& state, const std::string& path) {
+std::array<std::array<float, 3>, 3> initialize::read_state_from_xyz(State& state, const std::string& path) {
     std::ifstream file(path);
 
     if(!file.is_open()) {
@@ -115,7 +117,18 @@ void initialize::read_state_from_xyz(State& state, const std::string& path) {
     state.d_velocities.y.resize(num_atoms, 0);
     state.d_velocities.z.resize(num_atoms, 0);
 
+    // latticeの情報を取得
     std::getline(file, line);
+    std::array<float, 3> lattice_x, lattice_y, lattice_z;
+    // latticeの部分を読み込む
+    // コメントからlatticeの部分を抜き出す
+    std::string lattice_comment = find_lattice(line);
+    // 文字列をストリームに変換
+    std::istringstream iss(lattice_comment);
+    iss >> lattice_x[0] >> lattice_x[1] >> lattice_x[2] >> 
+           lattice_y[0] >> lattice_y[1] >> lattice_y[2] >>
+           lattice_z[0] >> lattice_z[1] >> lattice_z[2];
+    std::array<std::array<float, 3>, 3> lattice = {lattice_x, lattice_y, lattice_z};
 
     // 原子の情報を保持する変数
     thrust::host_vector<int64_t> h_atomic_numbers(num_atoms);
@@ -154,6 +167,8 @@ void initialize::read_state_from_xyz(State& state, const std::string& path) {
 
     std::cout << "構造ファイルを読み込みました：" << path << std::endl;
     std::cout << "原子数：" << num_atoms << std::endl;
+
+    return lattice;
 }
 
 std::array<std::array<float, 3>, 3> initialize::find_lattice_from_xyz(const std::string& path) {
@@ -208,4 +223,51 @@ void initialize::init_velocities(State& state, float temperature, std::mt19937& 
 
     // 全体速度の除去
     md::utils::compute::remove_drift(state);
+}
+
+void initialize::generate_binary_lj(State& state, const int n_atoms, const float density, std::array<std::array<float, 3>, 3>& lattice, const float a_ratio, std::mt19937 &mt) {
+    float Lbox = std::pow(n_atoms / density, 1.0f / 3.0f);
+    lattice = {{{Lbox, 0, 0}, {0, Lbox, 0}, {0, 0, Lbox}}};
+    thrust::host_vector<float> masses(n_atoms, 1.0f);
+    thrust::host_vector<float> positions_x(n_atoms, 0.0f), positions_y(n_atoms, 0.0f), positions_z(n_atoms, 0.0f);
+    thrust::host_vector<float> velocities_x(n_atoms, 0.0f), velocities_y(n_atoms, 0.0f), velocities_z(n_atoms, 0.0f);
+    thrust::host_vector<float> forces_x(n_atoms, 0.0f), forces_y(n_atoms, 0.0f), forces_z(n_atoms, 0.0f);
+    thrust::host_vector<float> box_x(n_atoms, 0.0f), box_y(n_atoms, 0.0f), box_z(n_atoms, 0.0f);
+    thrust::host_vector<int64_t> atomic_numbers(n_atoms, 0);
+
+    // 位置の初期化
+    const auto ln = static_cast<int>(std::ceil(std::pow(n_atoms, 1.0f / 3.0f)));
+    const auto haba = Lbox / ln;
+
+    for (int i = 0; i < n_atoms; i ++) {
+        const int iz = std::floor(i / (ln * ln));
+        const int iy = std::floor((i - iz * ln * ln) / ln);
+        const int ix = i - iz * ln * ln - iy * ln;
+
+        positions_x[i] = haba * 0.5 + haba * ix;
+        positions_y[i] = haba * 0.5 + haba * iy;
+        positions_z[i] = haba * 0.5 + haba * iz;
+    }
+
+    // 種類の初期化
+    std::size_t num_a = static_cast<std::size_t>(n_atoms * a_ratio);
+    thrust::fill(atomic_numbers.begin(), atomic_numbers.begin() + num_a, 0);
+    thrust::fill(atomic_numbers.begin() + num_a, atomic_numbers.end(), 1);
+    std::shuffle(atomic_numbers.begin(), atomic_numbers.end(), mt);
+
+    // GPUに転送
+    state.d_positions.x = positions_x;
+    state.d_positions.y = positions_y;
+    state.d_positions.z = positions_z;
+    state.d_velocities.x = velocities_x;
+    state.d_velocities.y = velocities_y;
+    state.d_velocities.z = velocities_z;
+    state.d_forces.x = forces_x;
+    state.d_forces.y = forces_y;
+    state.d_forces.z = forces_z;
+    state.d_box.x = box_x;
+    state.d_box.y = box_y;
+    state.d_box.z = box_z;
+    state.d_atomic_numbers = atomic_numbers;
+    state.d_masses = masses;
 }

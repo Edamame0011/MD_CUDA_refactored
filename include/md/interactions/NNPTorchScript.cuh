@@ -227,7 +227,7 @@ namespace md::interactions {
                 options.dtype(torch::kFloat32)
             );
 
-            edge_weight = edge_weight.t();
+            edge_weight = edge_weight.t().contiguous();
             edge_weight.requires_grad_(true);
 
             // 推論
@@ -235,8 +235,6 @@ namespace md::interactions {
 
             try {
                 auto result_iv = model.forward({x, edge_index, edge_weight});
-
-                cudaDeviceSynchronize();
 
                 auto result_tuple = result_iv.toTuple();
                 auto elements = result_tuple->elements();

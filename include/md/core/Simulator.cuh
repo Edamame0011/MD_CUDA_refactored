@@ -32,13 +32,14 @@ namespace md {
             
                 // メインループ
                 while (current_steps < total_steps) {
+                    integrator->integrateStepOne(state);
+                    cell.apply_pbc(state);
+
                     // 力のゼロ埋め
                     thrust::fill(state.d_forces.x.begin(), state.d_forces.x.end(), 0.0f);
                     thrust::fill(state.d_forces.y.begin(), state.d_forces.y.end(), 0.0f);
                     thrust::fill(state.d_forces.z.begin(), state.d_forces.z.end(), 0.0f);
-
-                    integrator->integrateStepOne(state);
-                    cell.apply_pbc(state);
+                    
                     interactions->forward(state);
                     integrator->integrateStepTwo(state);
                     
