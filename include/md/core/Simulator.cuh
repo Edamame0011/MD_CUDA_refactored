@@ -39,7 +39,7 @@ namespace md {
                     thrust::fill(state.d_forces.x.begin(), state.d_forces.x.end(), 0.0f);
                     thrust::fill(state.d_forces.y.begin(), state.d_forces.y.end(), 0.0f);
                     thrust::fill(state.d_forces.z.begin(), state.d_forces.z.end(), 0.0f);
-                    
+
                     interactions->forward(state);
                     integrator->integrateStepTwo(state);
                     

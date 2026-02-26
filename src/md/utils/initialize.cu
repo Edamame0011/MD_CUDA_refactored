@@ -270,4 +270,6 @@ void initialize::generate_binary_lj(State& state, const int n_atoms, const float
     state.d_box.z = box_z;
     state.d_atomic_numbers = atomic_numbers;
     state.d_masses = masses;
+
+    state.n_atoms = n_atoms;
 }

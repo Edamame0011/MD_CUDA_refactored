@@ -17,7 +17,7 @@ namespace {
         const float rij2 = rij1 * rij1;
         const float rij6 = rij2 * rij2 * rij2;
         const float sij2 = sij1 * sij1;
-        const float sij6 = sij2 * sij2;
+        const float sij6 = sij2 * sij2 * sij2;
 
         return 4.0f * sij6 * (sij6 - rij6) / (rij6 * rij6);
     }
@@ -26,7 +26,7 @@ namespace {
         const float rij2 = rij1 * rij1;
         const float rij6 = rij2 * rij2 * rij2;
         const float sij2 = sij1 * sij1;
-        const float sij6 = sij2 * sij2;
+        const float sij6 = sij2 * sij2 * sij2;
 
         return -24.0f / rij1 * sij6 * (2.0f * sij6 - rij6) / (rij6 * rij6);
     }
@@ -73,7 +73,7 @@ namespace {
             int i = idx / num_atoms;
             int j = idx % num_atoms;
 
-            if (j >= i) return;
+            if (j <= i) return;
 
             // 原子の種類
             const int si = identifier[i];
