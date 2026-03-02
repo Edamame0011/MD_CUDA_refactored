@@ -9,11 +9,13 @@
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/utils/initialize.cuh>
+#include <md/observers/LogOutput.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <fstream>
 #include <string>
 #include <chrono>
+#include <cmath>
 
 using json = nlohmann::json;
 
@@ -100,6 +102,11 @@ void simulate(CellType& cell, const json& j) {
     std::string o_type = o_setting.value("type", "linear");
     if (o_type == "linear") {
         observer = std::make_unique<md::observers::LinearOutput>(o_setting.at("output_interval"));
+    }
+    if (o_type == "log") {
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        observer = std::make_unique<md::observers::LogOutput>(log_interval, 5);
     }
     else {
         throw std::runtime_error("未対応のoutput typeです: " + o_type);

@@ -11,9 +11,7 @@
 namespace {
     template <typename CellType>
     struct Generate {
-        const float* d_x;
-        const float* d_y;
-        const float* d_z;
+        const float *d_x, *d_y, *d_z;
         float cutoff_plus_margin_sq;
         int num_atoms;
         CellType cell;
@@ -48,8 +46,7 @@ namespace {
     };
 
     struct Top2 {
-        float max1;
-        float max2;
+        float max1, max2;
 
         __host__ __device__ Top2() : max1(-1.0f), max2(-1.0f) {}
 
@@ -60,13 +57,8 @@ namespace {
 
     template <typename CellType>
     struct CalcDist {
-        const float* d_x;
-        const float* d_y;
-        const float* d_z;
-
-        const float* d_conf_x;
-        const float* d_conf_y;
-        const float* d_conf_z;
+        const float *d_x, *d_y, *d_z;
+        const float *d_conf_x, *d_conf_y, *d_conf_z;
 
         CellType cell;
 

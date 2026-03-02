@@ -15,8 +15,8 @@
     }, 
 
     "output": {
-        "type": "linear", 
-        "output_interval": 1000
+        "type": "log", 
+        "divisions": 9
     }, 
 
     "atoms": {

@@ -105,7 +105,7 @@ namespace {
             const float rij1 = sqrtf(dist_sq);
             const float sij1 = sigma[si * num_species + sj];
 
-            float deriv_1st = deriv_1st_LJpotential(rij1, sij1);
+            float deriv_1st = deriv_1st_LJpotential(rij1, sij1) - deriv_1st_LJpotential(r_c, sij1);
             deriv_1st *= epsilon[si * num_species + sj];
 
             atomicAdd(&d_force_x[i], -deriv_1st * dx / rij1);
