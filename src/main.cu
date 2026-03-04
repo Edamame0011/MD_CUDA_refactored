@@ -13,6 +13,7 @@
 #include <md/observers/LogOutput.cuh>
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.cuh>
+#include <md/temperature_schedulers/LinearScheduler.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <fstream>
@@ -24,8 +25,6 @@ using json = nlohmann::json;
 
 template <typename CellType>
 void simulate(CellType& cell, const json& j) {
-    std::mt19937 mt(123456789);
-
     json m_setting = j.at("meta");
     json a_setting = j.at("atoms");
     json s_setting = j.at("simulation");
@@ -36,6 +35,8 @@ void simulate(CellType& cell, const json& j) {
     std::array<std::array<float, 3>, 3> lattice = {};
     
     // その他の設定
+    int rand_seed = m_setting.value("seed", 12345);
+    std::mt19937 mt(rand_seed);
     state.dt = s_setting.at("dt");
     state.current_steps = 0;
     std::string unit_type = m_setting.value("unit", "lj");
@@ -132,6 +133,12 @@ void simulate(CellType& cell, const json& j) {
         std::string scheduler_type = e_setting.value("scheduler", "constant");
         if (scheduler_type == "constant") {
             scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
+        }
+        else if (scheduler_type == "linear") {
+            float initial_temperature = e_setting.at("temperature"); 
+            float rate_per_time = e_setting.at("rate_per_unit_time");
+            float rate_per_step = rate_per_time * state.dt;
+            scheduler = std::make_unique<md::temperature_schedulers::LinearScheduler>(initial_temperature, rate_per_step);
         }
         else {
             throw std::runtime_error("未対応のschedulerです: " + scheduler_type);

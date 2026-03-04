@@ -1,0 +1,45 @@
+{
+    "meta": {
+        "name": "test", 
+        "unit": "metal", 
+        "seed": 12345
+    }, 
+
+    "simulation": {
+        "dt": 0.5, 
+        "simulation_time": 5e+3, 
+        "cell_type": "cubic", 
+        "ensemble": {
+            "type": "NVT", 
+            "thermostat": "Nose-Hoover", 
+            "length": 1, 
+            "tau": 50, 
+            "scheduler": "linear", 
+            "temperature": 300, 
+            "rate_per_unit_time": 0.5
+        }
+    }, 
+
+    "output": {
+        "type": "log", 
+        "divisions": 9
+    }, 
+
+    "atoms": {
+        "mode": "from_file", 
+        "format": "xyz", 
+        "path": "./data/sample_NS2.xyz"
+    }, 
+
+    "interactions": {
+        "neighbour_list": {
+            "cutoff": 5.0, 
+            "margin": 1.0
+        }, 
+
+        "potentials": {
+            "type": "NNP_TorchScript", 
+            "model_path": "./models/deployed_model_Na2O-SiO2.pt"
+        }
+    }
+}
