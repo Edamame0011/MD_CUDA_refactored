@@ -204,6 +204,8 @@ namespace md::interactions {
         }
 
         void forward(State& state) override {
+            NL->check(state, cell);
+            
             convert_atoms(state);
             int num_atoms = state.n_atoms;
 
@@ -267,8 +269,6 @@ namespace md::interactions {
                           << e.what() << std::endl;
                 throw std::runtime_error("モデルの推論に失敗しました。" );
             }
-
-            NL->check(state, cell);
         }
 
     private:

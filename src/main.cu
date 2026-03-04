@@ -6,10 +6,13 @@
 #include <md/interactions/LJPotential.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
+#include <md/thermostats/NoseHooverChain.cuh>
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/utils/initialize.cuh>
 #include <md/observers/LogOutput.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+#include <md/temperature_schedulers/ConstantScheduler.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <fstream>
@@ -34,6 +37,7 @@ void simulate(CellType& cell, const json& j) {
     
     // その他の設定
     state.dt = s_setting.at("dt");
+    state.current_steps = 0;
     std::string unit_type = m_setting.value("unit", "lj");
     if(unit_type == "lj") {
         md::conversion_factor = 1.0;
@@ -103,7 +107,7 @@ void simulate(CellType& cell, const json& j) {
     if (o_type == "linear") {
         observer = std::make_unique<md::observers::LinearOutput>(o_setting.at("output_interval"));
     }
-    if (o_type == "log") {
+    else if (o_type == "log") {
         int divisions = o_setting.at("divisions");
         float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
         observer = std::make_unique<md::observers::LogOutput>(log_interval, 5);
@@ -114,12 +118,36 @@ void simulate(CellType& cell, const json& j) {
 
     // 熱浴・integratorの初期化
     std::unique_ptr<md::Thermostat> thermostat;
+    std::unique_ptr<md::TemperatureScheduler> scheduler;
     std::unique_ptr<md::Integrator> integrator;
     json e_setting = s_setting.at("ensemble");
     std::string ensemble = e_setting.value("type", "NVE");
     if (ensemble == "NVE") {
         md::utils::initialize::init_velocities(state, e_setting.at("temperature"), mt);
         thermostat = std::make_unique<md::thermostats::NoThermostat>();
+        integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
+    }
+    else if (ensemble == "NVT") {
+        md::utils::initialize::init_velocities(state, e_setting.at("temperature"), mt);
+        std::string scheduler_type = e_setting.value("scheduler", "constant");
+        if (scheduler_type == "constant") {
+            scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
+        }
+        else {
+            throw std::runtime_error("未対応のschedulerです: " + scheduler_type);
+        }
+
+        std::string thermostat_type = e_setting.value("thermostat", "Nose-Hoover");
+        if (thermostat_type == "Nose-Hoover") {
+            int length = e_setting.value("length", 1);
+            float tau = e_setting.value("tau", 50);
+            auto nhc = std::make_unique<md::thermostats::NoseHooverChain>(length, tau, scheduler.get());
+            nhc->init(state);
+            thermostat = std::move(nhc);
+        }
+        else {
+            throw std::runtime_error("未対応のthermostatです: " + thermostat_type);
+        }
         integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
     }
     else {

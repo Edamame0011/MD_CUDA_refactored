@@ -8,7 +8,7 @@ namespace md::observers{
     class LinearOutput : public Observer {
         public:
             LinearOutput(int interval) : output_interval(interval) {}
-            void output(const State& state, const int step) override;
+            void output(const State& state) override;
         private:
             int output_interval;
     };

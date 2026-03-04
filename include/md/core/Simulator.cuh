@@ -17,21 +17,19 @@ namespace md {
                 Integrator *_integrator, 
                 Observer *_observer, 
                 CellType _cell
-            ) : state(_state), interactions(_interaction), integrator(_integrator), observer(_observer), cell(_cell) {
-                this->current_steps = 0;
-            }
+            ) : state(_state), interactions(_interaction), integrator(_integrator), observer(_observer), cell(_cell) { }
         
             // シミュレーションの実行
             void run(float tsim) {
                 int total_steps = static_cast<int>(tsim / state.dt);
-                total_steps += this->current_steps;
+                total_steps += state.current_steps;
             
                 // 初期状態の処理
                 interactions->forward(state);
-                observer->output(state, current_steps);
+                md::observers::print_energies(state);
             
                 // メインループ
-                while (current_steps < total_steps) {
+                while (state.current_steps < total_steps) {
                     integrator->integrateStepOne(state);
                     cell.apply_pbc(state);
 
@@ -43,9 +41,9 @@ namespace md {
                     interactions->forward(state);
                     integrator->integrateStepTwo(state);
                     
-                    this->current_steps ++;
+                    state.current_steps ++;
                 
-                    observer->output(state, current_steps);
+                    observer->output(state);
                 }
             };
         
@@ -55,8 +53,6 @@ namespace md {
             Integrator* integrator;
             Observer* observer;
             CellType cell;
-        
-            int current_steps;
     };
 }
 

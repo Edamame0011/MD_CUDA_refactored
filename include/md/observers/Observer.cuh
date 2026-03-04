@@ -8,7 +8,7 @@ namespace md{
         public:
             virtual ~Observer () = default;
 
-            virtual void output(const State& state, const int step) = 0;
+            virtual void output(const State& state) = 0;
         protected:
             Observer() = default;
     };
@@ -17,5 +17,5 @@ namespace md{
 #endif
 
 namespace md::observers {
-    void print_energies(const State& state, const int step);
+    void print_energies(const State& state);
 }

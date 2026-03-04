@@ -1,0 +1,47 @@
+{
+    "meta": {
+        "name": "test_lj", 
+        "unit": "lj"
+    }, 
+
+    "simulation": {
+        "dt": 5e-3, 
+        "simulation_time": 1e+5, 
+        "cell_type": "cubic", 
+        "ensemble": {
+            "type": "NVT", 
+            "thermostat": "Nose-Hoover", 
+            "length": 5, 
+            "tau": 1, 
+            "temperature": 1.0, 
+            "scheduler": "constant"
+        }
+    }, 
+
+    "output": {
+        "type": "log", 
+        "divisions": 9
+    }, 
+
+    "atoms": {
+        "mode": "generate_binary_lj", 
+        "n_atoms": 500, 
+        "density": 1.2, 
+        "ratio": [0.8, 0.2]
+    }, 
+
+    "interactions": {
+        "neighbour_list": {
+            "cutoff": 2.0, 
+            "margin": 1.0
+        }, 
+
+        "potentials": {
+            "type": "lennard_jones", 
+            "numbers": [0, 1], 
+            "sigma": [1.0, 0.8, 0.8, 0.88], 
+            "epsilon": [1.0, 1.5, 1.5, 0.5], 
+            "cutoff": [1.5, 2.0, 2.0, 1.5]
+        }
+    }
+}

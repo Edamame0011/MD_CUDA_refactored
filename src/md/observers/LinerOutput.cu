@@ -5,8 +5,8 @@
 
 using namespace md::observers;
 
-void LinearOutput::output(const State& state, const int step) {
-    if (step % this->output_interval == 0) {
-        print_energies(state, step);
+void LinearOutput::output(const State& state) {
+    if (state.current_steps % this->output_interval == 0) {
+        print_energies(state);
     }
 }

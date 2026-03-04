@@ -9,9 +9,9 @@ LogOutput::LogOutput(float _interval, int _counter) : log_interval(_interval), c
         this->checker = 1e-3 * std::pow(log_interval, counter);
     }
 
-void LogOutput::output(const State& state, const int step) {
-    if (state.dt * step > checker) {
-        print_energies(state, step);
+void LogOutput::output(const State& state) {
+    if (state.dt * state.current_steps > checker) {
+        print_energies(state);
 
         this->counter ++;
         this->checker = 1e-3 * std::pow(log_interval, counter);

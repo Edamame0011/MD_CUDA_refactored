@@ -19,6 +19,7 @@ namespace md {
         int n_atoms;                                        // 粒子数
         float dt;                                           // 時間刻み幅
         float potential_energy;                             // ポテンシャルエネルギー
+        int current_steps;                                  // 現在のステップ数
     };
 }
 
