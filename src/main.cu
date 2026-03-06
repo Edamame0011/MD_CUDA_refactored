@@ -4,6 +4,7 @@
 #include <md/integrators/ConstantVolume.cuh>
 #include <md/interactions/NNPTorchScript.cuh>
 #include <md/interactions/LJPotential.cuh>
+#include <md/integrators/LangevinIntegrator.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
 #include <md/thermostats/NoseHooverChain.cuh>
@@ -151,11 +152,18 @@ void simulate(CellType& cell, const json& j) {
             auto nhc = std::make_unique<md::thermostats::NoseHooverChain>(length, tau, scheduler.get());
             nhc->init(state);
             thermostat = std::move(nhc);
+            integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
+        }
+        else if (thermostat_type == "Langevin") {
+            float gamma = 1.0f / e_setting.value("tau", 1.0f);
+            int seed = e_setting.value("seed", 12345);
+            auto langevin = std::make_unique<md::integrators::LangevinIntegrator>(gamma, seed, scheduler.get());
+            langevin->init(state);
+            integrator = std::move(langevin);
         }
         else {
             throw std::runtime_error("未対応のthermostatです: " + thermostat_type);
         }
-        integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
     }
     else {
         throw std::runtime_error("未対応のensembleです: " + ensemble);
@@ -180,7 +188,7 @@ int main(int argc, char* argv[]) {
     try {
         // コマンドライン引数の処理
         if (argc < 2) {
-            std::cout << "jsonファイルのパスを入力してください。" << std::endl;
+            std::cerr << "jsonファイルのパスを入力してください。" << std::endl;
             return 1;
         }
     

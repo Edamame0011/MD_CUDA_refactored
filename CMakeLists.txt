@@ -43,7 +43,7 @@ add_executable(MD_MLP
 )
 
 # libtorch + cuDNN をリンク
-target_link_libraries(MD_MLP ${TORCH_LIBRARIES} ${CUDNN_LIBRARY})
+target_link_libraries(MD_MLP curand ${TORCH_LIBRARIES} ${CUDNN_LIBRARY})
 
 target_compile_options(MD_MLP PRIVATE 
     $<$<COMPILE_LANGUAGE:CUDA>:

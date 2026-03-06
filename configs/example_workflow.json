@@ -1,0 +1,47 @@
+{
+    "meta": {
+        "name": "test_multi_step", 
+        "unit": "lj", 
+        "seed": 12345
+    }, 
+    "common_settings": {
+        "atoms": {
+            "mode": "generate_binary_lj", 
+            "n_atoms": 500, 
+            "density": 1.2, 
+            "ratio": [0.8, 0.2]
+        }
+    }, 
+    "steps": [
+        {
+            "name": "equilibration", 
+            "simulation": {
+                "dt": 5e-3, 
+                "simulation_time": 1e+3, 
+                "ensemble": {
+                    "type": "NVT", 
+                    "thermostat": "Nose-Hoover", 
+                    "length": 5, 
+                    "tau": 1, 
+                    "temperature": 1.0, 
+                    "scheduler": "constant"
+                }
+            }
+        }, 
+        {
+            "name": "production", 
+            "simulation": {
+                "dt": 5e-3, 
+                "simulation_time": 1e+5, 
+                "ensemble": {
+                    "type": "NVT", 
+                    "thermostat": "Nose-Hoover", 
+                    "length": 5, 
+                    "tau": 1, 
+                    "temperature": 1.0, 
+                    "scheduler": "constant"
+                }
+            }
+        }
+    ] 
+}
