@@ -8,6 +8,7 @@
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
 #include <md/thermostats/NoseHooverChain.cuh>
+#include <md/thermostats/BussiThermostat.cuh>
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/utils/initialize.cuh>
@@ -148,10 +149,18 @@ void simulate(CellType& cell, const json& j) {
         std::string thermostat_type = e_setting.value("thermostat", "Nose-Hoover");
         if (thermostat_type == "Nose-Hoover") {
             int length = e_setting.value("length", 1);
-            float tau = e_setting.value("tau", 50);
+            float tau = e_setting.value("tau", 1.0f);
             auto nhc = std::make_unique<md::thermostats::NoseHooverChain>(length, tau, scheduler.get());
             nhc->init(state);
             thermostat = std::move(nhc);
+            integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
+        }
+        else if (thermostat_type == "Bussi") {
+            float tau = e_setting.value("tau", 1.0f); 
+            int seed = e_setting.value("seed", 12345);
+            auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, seed, scheduler.get());
+            bussi->init(state);
+            thermostat = std::move(bussi);
             integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
         }
         else if (thermostat_type == "Langevin") {
