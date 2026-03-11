@@ -9,6 +9,7 @@ namespace md{
             virtual ~Observer () = default;
 
             virtual void output(const State& state) = 0;
+            virtual void init(const State& state) = 0;
         protected:
             Observer() = default;
     };

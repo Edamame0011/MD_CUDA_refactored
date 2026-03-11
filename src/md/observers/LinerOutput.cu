@@ -10,3 +10,8 @@ void LinearOutput::output(const State& state) {
         print_energies(state);
     }
 }
+
+void LinearOutput::init(const State& state) {
+    std::cout << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
+    print_energies(state);
+}

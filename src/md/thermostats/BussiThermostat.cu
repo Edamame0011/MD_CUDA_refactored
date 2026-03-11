@@ -21,7 +21,6 @@ namespace {
 using namespace md::thermostats;
 
 void BussiThermostat::init(const State& state) {
-    if (state.n_atoms % 2 != 0) throw std::runtime_error("Bussi熱浴を利用する場合、原子数は偶数である必要があります。");
     this->dof = 3 * state.n_atoms;
     this->gamma_dist = std::gamma_distribution<float>((dof - 2) / 2.0f, 1.0f);
 }

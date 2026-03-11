@@ -21,12 +21,13 @@ namespace md {
         
             // シミュレーションの実行
             void run(float tsim) {
+                if (state.current_steps == 0) {
+                    // 初期状態の処理
+                    interactions->forward(state);
+                    observer->init(state);
+                }
                 int total_steps = static_cast<int>(tsim / state.dt);
                 total_steps += state.current_steps;
-            
-                // 初期状態の処理
-                interactions->forward(state);
-                md::observers::print_energies(state);
             
                 // メインループ
                 while (state.current_steps < total_steps) {

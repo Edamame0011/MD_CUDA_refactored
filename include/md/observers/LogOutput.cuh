@@ -9,6 +9,7 @@ namespace md::observers{
         public:
             LogOutput(float _interval, int _counter);
             void output(const State& state) override;
+            void init(const State& state) override;
         private:
             float log_interval;
             int counter;

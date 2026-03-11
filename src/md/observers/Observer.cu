@@ -15,5 +15,5 @@ void md::observers::print_energies(const State& state) {
                                                               << K << ", "
                                                               << U << ", "
                                                               << K + U << ", "
-                                                              << temperature << std::endl;
+                                                              << temperature << "\n";
 }

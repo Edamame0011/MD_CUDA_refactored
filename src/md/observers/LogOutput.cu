@@ -17,3 +17,8 @@ void LogOutput::output(const State& state) {
         this->checker = 1e-3 * std::pow(log_interval, counter);
     }
 }
+
+void LogOutput::init(const State& state) {
+    std::cout << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
+    print_energies(state);
+}

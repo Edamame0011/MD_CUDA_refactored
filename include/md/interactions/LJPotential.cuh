@@ -270,7 +270,7 @@ namespace md::interactions {
 
 namespace md::utils::initialize {
     template <typename CellType>
-    md::interactions::LJPotential<CellType> init_LJPotential_from_json(nlohmann::json& json, State &state, CellType &cell, NeighbourList *NL) {
+    std::unique_ptr<md::interactions::LJPotential<CellType>> init_LJPotential_from_json(const nlohmann::json& json, State &state, CellType &cell, NeighbourList *NL) {
         // データの読み込み
         std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
         std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();
@@ -298,7 +298,7 @@ namespace md::utils::initialize {
             identifier.push_back(lut[num]);
         }
 
-        return md::interactions::LJPotential(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
+        return std::make_unique<md::interactions::LJPotential<CellType>>(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }
 

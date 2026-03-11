@@ -2,6 +2,7 @@
 #define CUBIC_CELL_CUH
 
 #include <md/core/State.cuh>
+#include <array>
 
 namespace md::cells {
     struct CubicCell {
@@ -19,8 +20,8 @@ namespace md::cells {
             z -= Lbox * floorf(z * Linv + 0.5f);
         }
 
-        void init (float _Lbox) {
-            this->Lbox = _Lbox;
+        void init (std::array<std::array<float, 3>, 3> lattice) {
+            this->Lbox = lattice[0][0];
         }
     };
 }
