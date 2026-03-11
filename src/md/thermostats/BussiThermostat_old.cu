@@ -1,9 +1,15 @@
-#include <md/thermostats/BussiThermostat.cuh>
+#include <md/thermostats/BussiThermostat_old.cuh>
 #include <md/core/constant.h>
 #include <thrust/transform_reduce.h>
 #include <md/utils/compute.cuh>
 
 namespace {
+    struct Square {
+        __host__ __device__ float operator() (float rand) {
+            return rand * rand;
+        }
+    };
+
     struct Scaling {
         float scaling_factor;
 
@@ -23,22 +29,31 @@ using namespace md::thermostats;
 void BussiThermostat::init(const State& state) {
     if (state.n_atoms % 2 != 0) throw std::runtime_error("Bussi熱浴を利用する場合、原子数は偶数である必要があります。");
     this->dof = 3 * state.n_atoms;
-    this->gamma_dist = std::gamma_distribution<float>((dof - 2) / 2.0f, 1.0f);
+
+    this->random.resize(dof);
 }
+
+void BussiThermostat::generate_rand(const State& state) {
+    curandGenerateNormal(this->gen, thrust::raw_pointer_cast(this->random.data()), this->dof, 0.0f, 1.0f);}
 
 void BussiThermostat::stepTwo(State& state) {
     float target_temperature = this->scheduler->get_temperature(state.current_steps);
     float targ_kin = (dof * boltzmann_constant * target_temperature) / 2;
     float kinetic_energy = md::utils::compute::calc_kinetic_energy(state);
 
-    // 乱数を生成
-    float r1 = this->normal_dist(this->gen);
-    float r2 = this->normal_dist(this->gen);
-    float g = this->gamma_dist(this->gen);
+    this->generate_rand(state);
 
     // スケーリング要素を計算
+    float sum_rand2 = thrust::transform_reduce(
+        this->random.begin(), 
+        this->random.end(), 
+        Square(), 
+        0.0f, 
+        thrust::plus<float>()
+    );
     float f = std::exp(-state.dt / this->tau);
-    float alpha2 = f + (targ_kin * (1 - f) * (r1 * r1 + r2 * r2 + 2 * g)) / (dof * kinetic_energy) + 2 * r1 * std::sqrt((targ_kin * f * (1 - f)) / (dof * kinetic_energy));
+    float r = this->random[0];
+    float alpha2 = f + (targ_kin * (1 - f) * sum_rand2) / (dof * kinetic_energy) + 2 * r * std::sqrt((targ_kin * f * (1 - f)) / (dof * kinetic_energy));
 
     // スケーリング
     thrust::for_each(
