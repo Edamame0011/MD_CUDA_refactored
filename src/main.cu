@@ -1,89 +1,102 @@
-#include <md/core/Simulator.cuh>
-#include <md/core/constant.h>
-#include <md/core/State.cuh>
-#include <md/core/Simulator.cuh>
-#include <md/integrators/ConstantVolume.cuh>
-#include <md/interactions/LJPotential.cuh>
-#include <md/observers/LinearOutput.cuh>
-#include <md/thermostats/NoThermostat.cuh>
-#include <md/cells/CubicCell.cuh>
-#include <md/utils/NeighbourList.cuh>
-#include <md/utils/initialize.cuh>
-#include <md/observers/LogOutput.cuh>
+#include <md/utils/initialize_from_json.cuh>
+
+#include <external/nlohmann/json.hpp>
+#include <fstream>
+#include <string>
 #include <chrono>
+#include <cmath>
+#include <iostream>
 
-int main() {
-    constexpr int n_atoms = 10000;
-    constexpr float density = 1.2;
-    constexpr float a_ratio = 0.8;
-    constexpr float temperature = 1.0;
-    constexpr float dt = 1e-4;
-    constexpr int seed = 12345;
-    constexpr float tsim = 1e+1;
+using json = nlohmann::json;
 
-    constexpr float nl_cutoff = 2.0;
-    constexpr float nl_margin = 1.0;
+template <typename CellType>
+void simulate(CellType& cell, md::State* state, md::Interaction& interaction, std::mt19937& mt, const json& j) {
+    json s_setting = j.at("simulation");
+    json o_setting = j.at("output");
 
-    // unitの初期化
-    md::conversion_factor = 1.0;
-    md::boltzmann_constant = 1.0;
-
-    // stateの初期化
-    std::mt19937 mt(seed);
-    std::array<std::array<float, 3>, 3> lattice;
-    auto state = md::utils::initialize::generate_binary_lj(n_atoms, density, lattice, a_ratio, mt);
-    md::utils::initialize::init_velocities(*state, temperature, mt);
-    state->dt = dt;
-
-    // Thermostatの初期化
-    std::unique_ptr<md::Thermostat> thermostat;
-    thermostat = std::make_unique<md::thermostats::NoThermostat>();
-
-    // Integratorの初期化
-    std::unique_ptr<md::Integrator> integrator;
-    integrator = std::make_unique<md::integrators::ConstantVolume>(thermostat.get());
-
-    // Cellの初期化
-    md::cells::CubicCell cell(lattice);
-
-    // NeighbourListの初期化
-    md::utils::NeighbourList<md::cells::CubicCell> nl(*state, nl_cutoff, nl_margin);
-
-    // Interactionの初期化
-    std::vector<int> identifier;
-    std::vector<int> numbers = {0, 1};
-    std::vector<int> atomic_numbers(n_atoms);
-    cudaMemcpy(atomic_numbers.data(), state->get_view().atomic_numbers, n_atoms * sizeof(int), cudaMemcpyDeviceToHost);
-    identifier.reserve(n_atoms);
-    int max_val = *std::max_element(numbers.begin(), numbers.end());
-    std::vector<int> lut(max_val + 1, -1);
-    for (int i = 0; i < 2; ++i) {
-        lut[numbers[i]] = i;
+    state->dt = s_setting.at("dt");
+    if (j.value("step", "") == "reset") {
+        state->current_steps = 0;
     }
-    for (int num : atomic_numbers) {
-        identifier.push_back(lut[num]);
-    }
-    md::interactions::LJPotential potential(
-        2, 
-        cell, 
-        &nl, 
-        {1.0, 0.8, 0.8, 0.88}, 
-        {1.0, 1.5, 1.5, 0.5}, 
-        {1.5, 2.0, 2.0, 1.5}, 
-        identifier
-    );
+    // アンサンブルの初期化
+    auto ensemble = md::utils::initialize::build_ensemble(s_setting.at("ensemble"), *state, mt);
 
-    // Observerの初期化
-    std::unique_ptr<md::Observer> observer;
-    observer = std::make_unique<md::observers::LinearOutput>(1000);
+    // オブザーバーの初期化
+    auto observer = md::utils::initialize::build_observer(o_setting);
 
-    // Simulatorの初期化
-    md::Simulator<md::cells::CubicCell> simulator(*state, &potential, integrator.get(), observer.get(), cell);
+    // simulatorの初期化
+    md::Simulator simulator(*state, &interaction, ensemble.integrator.get(), observer.get(), cell);
 
+    // 時間の計測
     auto start = std::chrono::steady_clock::now();
-    simulator.run(tsim);
+
+    // シミュレーションの実行
+    simulator.run(s_setting.at("simulation_time"));
+    
     auto end = std::chrono::steady_clock::now();
     double elapsed_s = std::chrono::duration<double>(end - start).count();
 
     std::cout << "かかった時間：" << elapsed_s << "s" << std::endl;
+}
+
+template <typename CellType>
+void step(md::State* state, const std::array<std::array<float, 3>, 3>& lattice, std::mt19937& mt, const json& j) {
+    CellType cell(lattice);
+    // 隣接リストとポテンシャルの初期化
+    json nl_setting = j.at("common_settings").at("interactions").at("neighbour_list");
+    float cutoff = nl_setting.value("cutoff", 5.0f);
+    float margin = nl_setting.value("margin", 1.0f);
+    md::utils::NeighbourList<CellType> nl(*state, cutoff, margin);
+    nl.generate(*state, cell);
+    auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
+
+    for (const auto& step : j["steps"]) {
+            std::string name = step.at("name");
+            std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
+            simulate(cell, state, *interaction, mt, step);
+    }
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        // コマンドライン引数の処理
+        if (argc < 2) {
+            std::cerr << "jsonファイルのパスを入力してください。" << std::endl;
+            return 1;
+        }
+    
+        std::string json_path = argv[1];
+    
+        // jsonファイルの処理
+        std::ifstream f(json_path);
+        if (!f.is_open()) throw std::runtime_error("ファイルを開けません。" );
+        json j = json::parse(f);
+
+        json meta = j.at("meta");
+        json c_setting = j.at("common_settings");
+        int rand_seed = meta.value("seed", 12345);
+        if (rand_seed < 0) {
+            std::random_device rd;
+            rand_seed = rd();
+        }
+        std::mt19937 mt(rand_seed);
+        // ユニットの初期化
+        md::utils::initialize::configure_units(meta);
+        // 系の初期化
+        std::array<std::array<float, 3>, 3> lattice;
+        auto state = md::utils::initialize::init_state(lattice, c_setting.at("atoms"), mt);
+        state->current_steps = 0;
+        std::string cell_type = c_setting.at("cell").value("type", "cubic");
+        if (cell_type == "cubic") {
+            step<md::cells::CubicCell>(state.get(), lattice, mt, j);
+        }
+        else {
+            throw std::runtime_error("未対応のcell typeです: " + cell_type);
+        }
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Error]" << e.what() << std::endl;
+        return 1;
+    }
+    return 0;
 }

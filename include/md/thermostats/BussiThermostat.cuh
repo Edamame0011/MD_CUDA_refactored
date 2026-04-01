@@ -20,7 +20,7 @@ namespace md::thermostats {
             void stepOne(State& state) override { /*何もしない*/ }
             void stepTwo(State& state) override;
 
-            void init(const State& state);
+            void init(State& state);
         private:
             float tau;
             int dof;

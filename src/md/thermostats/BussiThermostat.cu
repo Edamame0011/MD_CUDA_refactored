@@ -2,6 +2,7 @@
 #include <md/core/constant.h>
 #include <thrust/transform_reduce.h>
 #include <md/utils/compute.cuh>
+#include <thrust/iterator/counting_iterator.h>
 
 namespace {
     __global__ void calc_scaling_factor(
@@ -35,9 +36,10 @@ namespace {
 
 using namespace md::thermostats;
 
-void BussiThermostat::init(const State& state) {
+void BussiThermostat::init(State& state) {
     this->dof = 3 * state.n_atoms;
     this->gamma_dist = std::gamma_distribution<float>((dof - 2) / 2.0f, 1.0f);
+    this->calculator = std::make_unique<KinEnergyCalculator>(state);
 }
 
 void BussiThermostat::stepTwo(State& state) {

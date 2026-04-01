@@ -16,5 +16,5 @@ void md::observers::print_energies(State& state, Interaction* interaction) {
                                                               << K << ", "
                                                               << U << ", "
                                                               << K + U << ", "
-                                                              << temperature << std::endl;
+                                                              << temperature << "\n";
 }
