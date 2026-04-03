@@ -15,12 +15,14 @@ namespace md::utils {
 
             int* get_list() { return this->list; }
             int* get_count() { return this->count; }
+            int get_max_neighbours() { return this->max_neighbours; }
         
         private:
             float cutoff, margin;
             dfloat3 nl_conf;
             int* list;
             int* count;
+            size_t max_neighbours;
         };
 }
 

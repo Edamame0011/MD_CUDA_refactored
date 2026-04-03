@@ -3,13 +3,12 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#define MAX_PAIRS_RATIO 1.0
-
 namespace {
     template <typename CellType>
     struct Generate {
         dfloat3 pos, nl_conf;
         int num_atoms;
+        int max_neighbours;
         int* list; 
         int* count;
         float cutoff_margin_sq;
@@ -18,12 +17,13 @@ namespace {
         Generate(
             dfloat3 _pos, 
             int _num_atoms, 
+            int _max_neighbours, 
             dfloat3 _nl_conf, 
             int* _list, 
             int* _count, 
             float _cutoff_margin_sq, 
             CellType _cell
-        ) : pos(_pos), num_atoms(_num_atoms), nl_conf(_nl_conf), list(_list), count(_count), cutoff_margin_sq(_cutoff_margin_sq), cell(_cell) {}
+        ) : pos(_pos), num_atoms(_num_atoms), max_neighbours(_max_neighbours), nl_conf(_nl_conf), list(_list), count(_count), cutoff_margin_sq(_cutoff_margin_sq), cell(_cell) {}
 
         __device__ void operator() (int idx) {
             auto pxi = pos.x[idx];
@@ -48,7 +48,7 @@ namespace {
                 const auto dist_sq = dx * dx + dy * dy + dz * dz;
 
                 if (dist_sq < cutoff_margin_sq) {
-                    list[idx * num_atoms + c] = j;
+                    list[idx * max_neighbours + c] = j;
                     c ++;
                 }
             }
@@ -111,8 +111,9 @@ using namespace md::utils;
 template <typename CellType>
 NeighbourList<CellType>::NeighbourList(State& state, float _cutoff, float _margin) : cutoff(_cutoff), margin(_margin) {
     auto N = state.n_atoms;
-    cudaMalloc(&this->list, N * N * MAX_PAIRS_RATIO * sizeof(int));
-    cudaMalloc(&this->count, N * MAX_PAIRS_RATIO * sizeof(int));
+    this->max_neighbours = 10000;
+    cudaMalloc(&this->list, (size_t)N * max_neighbours * sizeof(int));
+    cudaMalloc(&this->count, N * sizeof(int));
     cudaMalloc(&this->nl_conf.x, N * sizeof(float));
     cudaMalloc(&this->nl_conf.y, N * sizeof(float));
     cudaMalloc(&this->nl_conf.z, N * sizeof(float));
@@ -141,6 +142,7 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
         Generate<CellType>(
             view.pos, 
             N, 
+            this->max_neighbours, 
             this->nl_conf, 
             this->list, 
             this->count, 

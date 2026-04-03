@@ -1,25 +1,41 @@
 #include <md/cells/CubicCell.cuh>
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
 
 namespace {
     struct ApplyPBC {
+        dfloat3 pos;
+        dint3 box;
         float Lbox;
-        ApplyPBC(float _Lbox) : Lbox(_Lbox) {}
-        template <typename Tuple>
-        __host__ __device__ void operator() (Tuple t) {
+        ApplyPBC(
+            dfloat3 _pos, 
+            dint3 _box, 
+            float _Lbox
+        ) : pos(_pos), 
+            box(_box), 
+            Lbox(_Lbox) {}
+        __host__ __device__ void operator() (int idx) {
             float Linv = 1.0f / Lbox;
 
-            float shift_x = floorf(thrust::get<0>(t) * Linv + 0.5f);
-            float shift_y = floorf(thrust::get<1>(t) * Linv + 0.5f);
-            float shift_z = floorf(thrust::get<2>(t) * Linv + 0.5f);
+            auto px = pos.x[idx];
+            auto py = pos.y[idx];
+            auto pz = pos.z[idx];
 
-            thrust::get<0>(t) -= Lbox * shift_x;
-            thrust::get<1>(t) -= Lbox * shift_y;
-            thrust::get<2>(t) -= Lbox * shift_z;
+            float shift_x = floorf(px * Linv + 0.5f);
+            float shift_y = floorf(py * Linv + 0.5f);
+            float shift_z = floorf(pz * Linv + 0.5f);
 
-            thrust::get<3>(t) += (int)shift_x;
-            thrust::get<4>(t) += (int)shift_y;
-            thrust::get<5>(t) += (int)shift_z;
+            px -= Lbox * shift_x;
+            py -= Lbox * shift_y;
+            pz -= Lbox * shift_z;
+
+            box.x[idx] += (int)shift_x;
+            box.y[idx] += (int)shift_y;
+            box.z[idx] += (int)shift_z;
+
+            pos.x[idx] = px;
+            pos.y[idx] = py;
+            pos.z[idx] = pz;
         }
     };
 }
@@ -33,22 +49,12 @@ void CubicCell::apply_pbc(State& state) const {
     // 更新
     thrust::for_each(
         thrust::device, 
-        thrust::make_zip_iterator(thrust::make_tuple(
-            view.pos.x, 
-            view.pos.y, 
-            view.pos.z, 
-            view.box.x, 
-            view.box.y, 
-            view.box.z
-        )), 
-        thrust::make_zip_iterator(thrust::make_tuple(
-            view.pos.x + N, 
-            view.pos.y + N, 
-            view.pos.z + N, 
-            view.box.x + N, 
-            view.box.y + N, 
-            view.box.z + N
-        )), 
-        ApplyPBC(Lbox)
+        thrust::make_counting_iterator(0), 
+        thrust::make_counting_iterator(N), 
+        ApplyPBC(
+            view.pos, 
+            view.box, 
+            Lbox
+        )
     );
 }

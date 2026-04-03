@@ -53,8 +53,6 @@ namespace md {
                     state.current_steps ++;
                 
                     observer->output(state, this->interaction);
-
-                    md::utils::compute::remove_drift(state);
                 }
             };
         
