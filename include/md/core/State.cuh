@@ -32,6 +32,8 @@ namespace md {
             int current_steps = 0;
             float potential_energy = 0;
 
+            cudaStream_t stream;
+
             State(int N) {
                 cudaMalloc(&view.pos.x, N * sizeof(float));
                 cudaMalloc(&view.pos.y, N * sizeof(float));
@@ -49,6 +51,7 @@ namespace md {
                 cudaMalloc(&view.mass_inv, N * sizeof(float));
                 cudaMalloc(&view.atomic_numbers, N * sizeof(int));
                 cudaMalloc(&view.kinetic_energy, sizeof(float));
+                cudaStreamCreate(&stream);
                 this->n_atoms = N;
 
                 cudaMemset(view.box.x, 0, N * sizeof(int));
@@ -72,6 +75,7 @@ namespace md {
                 cudaFree(view.mass_inv);
                 cudaFree(view.atomic_numbers);
                 cudaFree(view.kinetic_energy);
+                cudaStreamDestroy(stream);
             }
             StateView get_view() {
                 return this->view;

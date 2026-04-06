@@ -80,7 +80,7 @@ void ConstantVolume::integrateStepOne(State& state) {
 
     // 更新
     thrust::for_each(
-        thrust::device, 
+        thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         VelocityVerletStepOne(
@@ -100,7 +100,7 @@ void ConstantVolume::integrateStepTwo(State& state) {
 
     // 更新
     thrust::for_each(
-        thrust::device, 
+        thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         VelocityVerletStepTwo(

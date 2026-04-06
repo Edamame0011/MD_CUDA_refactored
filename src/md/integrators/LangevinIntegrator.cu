@@ -141,7 +141,7 @@ void LangevinIntegrator::integrateStepOne(State& state) {
 
     // 更新
     thrust::for_each(
-        thrust::device, 
+        thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator<int>(0), 
         thrust::make_counting_iterator<int>(state.n_atoms), 
         StepOne(
@@ -165,7 +165,7 @@ void LangevinIntegrator::integrateStepTwo(State& state) {
     auto view = state.get_view();
 
     thrust::for_each(
-        thrust::device, 
+        thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         StepTwo(

@@ -120,8 +120,8 @@ namespace md::utils::initialize {
             else if (thermo_type == "Bussi") {
                 float tau = e_setting.value("tau", 1.0f); 
                 int seed = e_setting.value("seed", 12345);
-                auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, seed, comp.scheduler.get());
-                bussi->init(state);
+                auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, comp.scheduler.get());
+                bussi->init(state, seed);
                 comp.thermostat = std::move(bussi);
                 comp.integrator = std::make_unique<md::integrators::ConstantVolume>(comp.thermostat.get());
             } 

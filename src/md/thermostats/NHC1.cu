@@ -102,7 +102,7 @@ void NHC1::op(State& state) {
 
     calculator->calc_kinetic_energy(state);
     
-    calc_scaling_factor<<<1, 1>>>(
+    calc_scaling_factor<<<1, 1, 0, state.stream>>>(
         view.kinetic_energy, 
         this->c_state, 
         1.0f / c_mass, 
@@ -111,7 +111,7 @@ void NHC1::op(State& state) {
     );
 
     thrust::for_each(
-        thrust::device, 
+        thrust::cuda::par.on(state.stream),  
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
         Scaling(

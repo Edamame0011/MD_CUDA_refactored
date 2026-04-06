@@ -49,5 +49,5 @@ void KinEnergyCalculator::calc_kinetic_energy(State& state) {
 
     cub::TransformInputIterator<float, CalcKinEnergy, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
 
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N);
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N, state.stream);
 }

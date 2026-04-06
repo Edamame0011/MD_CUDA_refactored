@@ -233,7 +233,7 @@ void LJPotential<CellType>::calc_force(State& state) {
 
     int grid_size = (N + warps_per_block - 1) / warps_per_block;
 
-    calc_force_kernel<<<grid_size, block_size>>>(
+    calc_force_kernel<<<grid_size, block_size, 0, state.stream>>>(
         num_species, 
         N, 
         NL->get_max_neighbours(), 
@@ -253,7 +253,7 @@ void LJPotential<CellType>::calc_potential(State& state) {
 
         // ポテンシャルの計算
         state.potential_energy = thrust::transform_reduce(
-            thrust::device, 
+            thrust::cuda::par.on(state.stream), 
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             CalcPotential<CellType>(
