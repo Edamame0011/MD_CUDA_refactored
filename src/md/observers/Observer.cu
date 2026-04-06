@@ -12,7 +12,7 @@ void md::observers::print_energies(State& state, Interaction* interaction) {
         int dof = 3 * state.n_atoms;
         float temperature = 2 * K / (dof * boltzmann_constant);
 
-        std::cout << std::setprecision(15) << std::scientific << state.current_steps * state.dt << ", "
+        std::cout << std::setprecision(7) << std::scientific << state.current_steps * state.dt << ", "
                                                               << K << ", "
                                                               << U << ", "
                                                               << K + U << ", "
