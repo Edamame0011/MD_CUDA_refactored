@@ -66,7 +66,7 @@ namespace {
             float dx = pxi - pxj;
             float dy = pyi - pyj;
             float dz = pzi - pzj;
-    
+        
             cell.apply_pbc(dx, dy, dz);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;

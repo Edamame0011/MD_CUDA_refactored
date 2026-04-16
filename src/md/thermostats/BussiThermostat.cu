@@ -24,7 +24,7 @@ namespace {
             v = v * v * v;
             u = curand_uniform(state);
             x_sq = x * x;
-            if (u < 1.0f - 0.0331f * x_sq * x_sq || logf(u) < 0.5f * x_sq + d * (1.0f - v + log(v))) {
+            if (u < 1.0f - 0.0331f * x_sq * x_sq || logf(u) < 0.5f * x_sq + d * (1.0f - v + logf(v))) {
                 return d * v * theta;
             }
         }

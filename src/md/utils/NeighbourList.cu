@@ -21,39 +21,58 @@ namespace {
     ) {
         if (!*flag) return;
 
-        int idx = blockDim.x * blockIdx.x + threadIdx.x;
+        int tid = blockDim.x * blockIdx.x + threadIdx.x;
+        int warp_id = tid / 32;
+        int lane_id = tid % 32;
 
-        if (idx < num_atoms) {
-            auto pxi = pos.x[idx];
-            auto pyi = pos.y[idx];
-            auto pzi = pos.z[idx];
+        int i = warp_id;
+
+        if (i < num_atoms) {
+            auto pxi = pos.x[i];
+            auto pyi = pos.y[i];
+            auto pzi = pos.z[i];
 
             int c = 0;
-            for (int j = 0; j < num_atoms; j ++) {
-                if (idx == j) continue;
 
-                auto pxj = pos.x[j];
-                auto pyj = pos.y[j];
-                auto pzj = pos.z[j];
+            for (int j = 0; j < num_atoms; j += 32) {
+                int j_curr = j + lane_id;
+                bool is_neighbour = false;
 
-                // 距離の計算
-                auto dx = pxi - pxj;
-                auto dy = pyi - pyj;
-                auto dz = pzi - pzj;
-    
-                cell.apply_pbc(dx, dy, dz);
+                if (j_curr < num_atoms && i != j_curr) {
+                    auto pxj = pos.x[j_curr];
+                    auto pyj = pos.y[j_curr];
+                    auto pzj = pos.z[j_curr];
 
-                const auto dist_sq = dx * dx + dy * dy + dz * dz;
+                    // 距離の計算
+                    auto dx = pxi - pxj;
+                    auto dy = pyi - pyj;
+                    auto dz = pzi - pzj;
+                    
+                    cell.apply_pbc(dx, dy, dz);
 
-                if (dist_sq < cutoff_margin_sq) {
-                    list[idx * max_neighbours + c] = j;
-                    c ++;
+                    const auto dist_sq = dx * dx + dy * dy + dz * dz;
+
+                    if (dist_sq < cutoff_margin_sq) {
+                        is_neighbour = true;
+                    }
                 }
+            
+                unsigned int mask = __ballot_sync(0xffffffff, is_neighbour);
+
+                if (is_neighbour) {
+                    int offset = __popc(mask & ((1u << lane_id) - 1));
+                    list[i * max_neighbours + c + offset] = j_curr;
+                }
+
+                c += __popc(mask);
             }
-            count[idx] = c;
-            nl_conf.x[idx] = pxi;
-            nl_conf.y[idx] = pyi;
-            nl_conf.z[idx] = pzi;
+
+            if (lane_id == 0) {
+                count[i] = c;
+                nl_conf.x[i] = pxi;
+                nl_conf.y[i] = pyi;
+                nl_conf.z[i] = pzi;
+            }
         }
     }
 
@@ -213,8 +232,11 @@ void NeighbourList<CellType>::check(State& state, CellType cell) {
         margin * margin
     );
 
-    int num_threads = 128;
-    int num_blocks = (N + num_threads - 1) / num_threads;
+    constexpr int num_threads = 128;
+    constexpr int warps_per_block = num_threads / 32;
+
+    int num_blocks = (N + warps_per_block - 1) / warps_per_block;
+
     generate_nl<CellType><<<num_blocks, num_threads, 0, state.stream>>>(
         this->flag, 
         view.pos, 

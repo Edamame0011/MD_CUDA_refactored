@@ -111,7 +111,7 @@ void NHC1::op(State& state) {
     );
 
     thrust::for_each(
-        thrust::cuda::par.on(state.stream),  
+        thrust::cuda::par_nosync.on(state.stream),  
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
         Scaling(

@@ -17,7 +17,7 @@ namespace md {
                 Interaction *_interaction, 
                 Integrator *_integrator, 
                 Observer *_observer, 
-                CellType _cell
+                CellType& _cell
             ) : state(_state), interaction(_interaction), integrator(_integrator), observer(_observer), cell(_cell) { }
         
             // シミュレーションの実行
@@ -28,7 +28,7 @@ namespace md {
 
                 // 録画の開始
                 // 複数回のループを一つのグラフとして記録する。
-                int num_loop_per_graph = 100;
+                int num_loop_per_graph = 1000;
                 cudaStreamBeginCapture(state.stream, cudaStreamCaptureModeGlobal);
                 for (int i = 0; i < num_loop_per_graph; i ++) {
                     integrator->integrateStepOne(state);
@@ -55,6 +55,9 @@ namespace md {
                     state.current_steps += num_loop_per_graph;
                     observer->output(state, this->interaction);
                 }
+
+                cudaGraphExecDestroy(instance);
+                cudaGraphDestroy(graph);
             };
         
         private:
