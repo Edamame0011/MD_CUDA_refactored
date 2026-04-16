@@ -7,7 +7,7 @@
     "common_settings": {
         "atoms": {
             "mode": "generate_binary_lj", 
-            "n_atoms": 10000, 
+            "n_atoms": 1000, 
             "density": 1.2, 
             "ratio": [0.8, 0.2]
         }, 
@@ -62,6 +62,35 @@
                     "seed": 12345, 
                     "temperature": 2.0, 
                     "scheduler": "constant"
+                }
+            }, 
+            "output": {
+                "type": "log", 
+                "divisions": 9
+            }, 
+            "step": "reset"
+        }, 
+
+        {
+            "name": "energy minimization", 
+            "minimize": {
+                "type": "fire", 
+                "checker": {
+                    "type": "max_norm", 
+                    "threshold": 1e-12
+                }, 
+                "params": {
+                    "dt_start": 2e-3, 
+                    "n_max": 5000, 
+                    "t_max": 10.0, 
+                    "t_min": 0.02, 
+                    "n_delay": 20, 
+                    "f_inc": 1.1, 
+                    "f_dec": 0.5, 
+                    "alpha_start": 0.25, 
+                    "f_alpha": 0.99, 
+                    "n_neg_max": 2000, 
+                    "initialdelay": true
                 }
             }, 
             "output": {

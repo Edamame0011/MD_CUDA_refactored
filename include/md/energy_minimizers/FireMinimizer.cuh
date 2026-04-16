@@ -24,8 +24,8 @@ namespace md::energy_minimizers {
                 int _n_delay, 
                 int _n_neg_max, 
                 float _dt_start, 
-                float _dt_max, 
-                float _dt_min, 
+                float _t_max, 
+                float _t_min, 
                 float _f_inc, 
                 float _f_dec, 
                 float _alpha_start, 
@@ -42,17 +42,17 @@ namespace md::energy_minimizers {
             ConvChecker* checker = nullptr;
 
             // ハイパーパラメータ
-            int n_max = 1e+3;
-            int n_delay = 1e+2;
-            int n_neg_max;
+            int n_max = 5e+3;
+            int n_delay = 20;
+            int n_neg_max = 2000;
             float dt_start = 5e-3f;
-            float dt_max = 1e-3f;
-            float dt_min = 5e-4f;
-            float f_inc = 0e-3f;
-            float f_dec = 0e-3f;
-            float alpha_start;
-            float f_alpha;
-            bool initialdelay = false;
+            float t_max = 5.0f;
+            float t_min = 0.02f;
+            float f_inc = 1.1f;
+            float f_dec = 0.5f;
+            float alpha_start = 0.25f;
+            float f_alpha = 0.99f;
+            bool initialdelay = true;
     };
 }
 

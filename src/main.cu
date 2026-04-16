@@ -7,6 +7,11 @@
 #include <cmath>
 #include <iostream>
 
+#include <md/convergence_checkers/ConvChecker.cuh>
+#include <md/energy_minimizers/EnergyMinimizer.cuh>
+#include <md/energy_minimizers/FireMinimizer.cuh>
+#include <md/convergence_checkers/MaxNorm.cuh>
+
 using json = nlohmann::json;
 
 template <typename CellType>
@@ -41,6 +46,65 @@ void simulate(CellType& cell, md::State* state, md::Interaction& interaction, st
 }
 
 template <typename CellType>
+void energy_minimize(CellType& cell, md::State* state, md::Interaction& interaction, std::mt19937& mt, const json& j) {
+    json setting = j.at("minimize");
+    json o_setting = j.at("output");
+
+    if (j.value("step", "") == "reset") {
+        state->current_steps = 0;
+    }
+
+    // オブザーバーの初期化
+    auto observer = md::utils::initialize::build_observer(o_setting);
+
+    // チェッカーの初期化
+    std::unique_ptr<md::ConvChecker> checker = nullptr;
+    if (setting.at("checker").at("type") == "max_norm") {
+        float threshold = setting.at("checker").at("threshold");
+        checker = std::make_unique<md::convergence_checkers::MaxNorm>(threshold);
+    }
+    else {
+        throw std::runtime_error("未定義のcheckerです。");
+    }
+
+    // ミニマイザーの初期化
+    std::unique_ptr<md::EnergyMinimizer> minimizer = nullptr;
+    if (setting.at("type") == "fire") {
+        auto fire = std::make_unique<md::energy_minimizers::FireMinimizer<CellType>>(*state, cell, &interaction, observer.get(), checker.get());
+        if (!(setting.at("params") == "default")) {
+            auto p_setting = setting.at("params");
+            fire->set_hyper_parameters(
+                p_setting.at("n_max"), 
+                p_setting.at("n_delay"), 
+                p_setting.at("n_neg_max"), 
+                p_setting.at("dt_start"), 
+                p_setting.at("t_max"), 
+                p_setting.at("t_min"), 
+                p_setting.at("f_inc"), 
+                p_setting.at("f_dec"), 
+                p_setting.at("alpha_start"), 
+                p_setting.at("f_alpha"), 
+                p_setting.at("initialdelay")
+            );
+        }
+
+        minimizer = std::move(fire);
+    }
+    else {
+        throw std::runtime_error("未定義のminimizerです。");
+    }
+
+    auto start = std::chrono::steady_clock::now();
+    minimizer->run();
+    cudaDeviceSynchronize();
+    
+    auto end = std::chrono::steady_clock::now();
+    double elapsed_s = std::chrono::duration<double>(end - start).count();
+
+    std::cout << "かかった時間：" << elapsed_s << "s" << std::endl;
+}
+
+template <typename CellType>
 void step(md::State* state, const std::array<std::array<float, 3>, 3>& lattice, std::mt19937& mt, const json& j) {
     CellType cell(lattice);
     // 隣接リストとポテンシャルの初期化
@@ -52,9 +116,11 @@ void step(md::State* state, const std::array<std::array<float, 3>, 3>& lattice, 
     auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
 
     for (const auto& step : j["steps"]) {
-            std::string name = step.at("name");
-            std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
-            simulate(cell, state, *interaction, mt, step);
+        std::string name = step.at("name");
+        std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
+        if (step.contains("simulation")) simulate(cell, state, *interaction, mt, step);
+        else if (step.contains("minimize")) energy_minimize(cell, state, *interaction, mt, step);
+        else std::cout << "未知のキーワードです。" << std::endl;
     }
 }
 

@@ -4,6 +4,7 @@
 #include <md/cells/CubicCell.cuh>
 #include <md/core/constant.h>
 #include <thrust/execution_policy.h>
+#include <md/observers/Observer.cuh>
 
 namespace {
     struct CalcDot {
@@ -129,8 +130,8 @@ void FireMinimizer<CellType>::set_hyper_parameters(
     int _n_delay, 
     int _n_neg_max, 
     float _dt_start, 
-    float _dt_max, 
-    float _dt_min, 
+    float _t_max, 
+    float _t_min, 
     float _f_inc, 
     float _f_dec, 
     float _alpha_start, 
@@ -141,8 +142,8 @@ void FireMinimizer<CellType>::set_hyper_parameters(
     n_delay = _n_delay;
     n_neg_max = _n_neg_max;
     dt_start = _dt_start;
-    dt_max = _dt_max;
-    dt_min = _dt_min;
+    t_max = _t_max;
+    t_min = _t_min;
     f_inc = _f_inc;
     f_dec = _f_dec;
     alpha_start = _alpha_start;
@@ -185,7 +186,7 @@ void FireMinimizer<CellType>::run() {
             n_pos ++;
             n_neg = 0;
             if (n_pos > n_delay) {
-                dt = std::min(dt * f_inc, dt_max);
+                dt = std::min(dt * f_inc, dt_start * t_max);
                 alpha = alpha * f_alpha;
             }
         } else {
@@ -193,7 +194,7 @@ void FireMinimizer<CellType>::run() {
             n_neg ++;
             if (n_neg > n_neg_max) break;
             if (!(initialdelay && (i < n_delay))) {
-                dt = std::max(dt * f_dec, dt_min);
+                dt = std::max(dt * f_dec, dt_start * t_min);
                 alpha = alpha_start;
             }
             thrust::for_each(
@@ -244,7 +245,10 @@ void FireMinimizer<CellType>::run() {
 
         observer->output(state, interaction);
 
-        if (checker->check(state)) break;
+        if (checker->check(state)) {
+            md::observers::print_energies(state, interaction);
+            break;
+        }
     }
 }
 
