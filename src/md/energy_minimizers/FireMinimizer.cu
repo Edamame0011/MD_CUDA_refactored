@@ -3,6 +3,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <md/cells/CubicCell.cuh>
 #include <md/core/constant.h>
+#include <thrust/execution_policy.h>
 
 namespace {
     struct CalcDot {
@@ -170,6 +171,7 @@ void FireMinimizer<CellType>::run() {
     // メインループ
     for (int i = 0; i < n_max; i ++) {
         float p = thrust::transform_reduce(
+            thrust::device, 
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             CalcDot(
@@ -195,6 +197,7 @@ void FireMinimizer<CellType>::run() {
                 alpha = alpha_start;
             }
             thrust::for_each(
+                thrust::device, 
                 thrust::make_counting_iterator(0),  
                 thrust::make_counting_iterator(N), 
                 Correct(
@@ -208,6 +211,7 @@ void FireMinimizer<CellType>::run() {
         dt_half_conv = dt * 0.5f * conversion_factor;
 
         thrust::for_each(
+            thrust::device, 
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             IntegrateStepOne(
@@ -223,6 +227,7 @@ void FireMinimizer<CellType>::run() {
         cell.apply_pbc(state);
         interaction->calc_force(state);
         thrust::for_each(
+            thrust::device, 
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(state.n_atoms), 
             IntegrateStepTwo(
