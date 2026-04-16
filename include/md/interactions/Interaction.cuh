@@ -1,5 +1,5 @@
-#ifndef INTERACTIONS_CUH
-#define INTERACTIONS_CUH
+#ifndef __INTERACTIONS_CUH__
+#define __INTERACTIONS_CUH__
 
 #include <md/core/State.cuh>
 
