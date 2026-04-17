@@ -61,14 +61,14 @@ namespace {
             const auto fy = force.y[idx];
             const auto fz = force.z[idx];
 
-            auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
-            auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
-            auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
+            auto vx = vel.x[idx] + fx * mi * dt_half_conv;
+            auto vy = vel.y[idx] + fy * mi * dt_half_conv;
+            auto vz = vel.z[idx] + fz * mi * dt_half_conv;
 
             float v_norm = sqrtf(vx * vx + vy * vy + vz * vz);
             float f_norm = sqrtf(fx * fx + fy * fy + fz * fz);
 
-            auto f_norm_inv = 1.0f / f_norm;
+            auto f_norm_inv = (f_norm > 1e-12f) ? (1.0f / f_norm) : 0.0f;
 
             vx = (1 - alpha) * vx + alpha * fx * v_norm * f_norm_inv;
             vy = (1 - alpha) * vy + alpha * fy * v_norm * f_norm_inv;

@@ -28,7 +28,7 @@ namespace md {
 
                 // 録画の開始
                 // 複数回のループを一つのグラフとして記録する。
-                int num_loop_per_graph = 1000;
+                int num_loop_per_graph = 1;
                 cudaStreamBeginCapture(state.stream, cudaStreamCaptureModeGlobal);
                 for (int i = 0; i < num_loop_per_graph; i ++) {
                     integrator->integrateStepOne(state);
