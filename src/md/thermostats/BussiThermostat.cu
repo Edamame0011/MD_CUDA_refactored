@@ -19,7 +19,7 @@ namespace {
             v = -1.0f;
             while(v <= 0.0f) {
                 x = curand_normal(state);
-                v = 1.0 + c * x;
+                v = 1.0f + c * x;
             }
             v = v * v * v;
             u = curand_uniform(state);
