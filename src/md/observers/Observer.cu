@@ -5,7 +5,6 @@
 #include <iomanip>
 
 void md::observers::print_energies(State& state, Interaction* interaction) {
-        cudaDeviceSynchronize();
         interaction->calc_potential(state);
         float K = md::utils::compute::calc_kinetic_energy(state);
         float U = state.potential_energy;

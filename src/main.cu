@@ -112,7 +112,8 @@ void step(md::State* state, const std::array<std::array<float, 3>, 3>& lattice, 
     float cutoff = nl_setting.value("cutoff", 5.0f);
     float margin = nl_setting.value("margin", 1.0f);
     if ((bool)nl_setting.value("cell_list", false)) {
-        md::utils::CellList cll(10, cell.Lbox, *state);
+        int M = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
+        md::utils::CellList cll(M, cell.Lbox, *state);
         md::utils::NeighbourList_CLL nl(*state, cutoff, margin, cll);
         nl.generate(*state, cell);
         auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
