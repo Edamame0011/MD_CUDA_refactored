@@ -7,7 +7,7 @@
 #include <md/core/State.cuh>
 
 struct ChainState {
-    float *pos, *vel, *force;
+    float *pos, *vel, *force, *mass;
     float *scaling_factor;
 };
 
@@ -26,7 +26,6 @@ namespace md::thermostats {
             
             float tau = 0.0f; 
             float dof = 0.0f;
-            float c_mass = 0.0f;
             ChainState c_state;
             TemperatureScheduler *scheduler = nullptr;
             std::unique_ptr<KinEnergyCalculator> calculator = nullptr;

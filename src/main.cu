@@ -111,16 +111,31 @@ void step(md::State* state, const std::array<std::array<float, 3>, 3>& lattice, 
     json nl_setting = j.at("common_settings").at("interactions").at("neighbour_list");
     float cutoff = nl_setting.value("cutoff", 5.0f);
     float margin = nl_setting.value("margin", 1.0f);
-    md::utils::NeighbourList<CellType> nl(*state, cutoff, margin);
-    nl.generate(*state, cell);
-    auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
+    if ((bool)nl_setting.value("cell_list", false)) {
+        md::utils::CellList cll(10, cell.Lbox, *state);
+        md::utils::NeighbourList_CLL nl(*state, cutoff, margin, cll);
+        nl.generate(*state, cell);
+        auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
+        
+        for (const auto& step : j["steps"]) {
+            std::string name = step.at("name");
+            std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
+            if (step.contains("simulation")) simulate(cell, state, *interaction, mt, step);
+            else if (step.contains("minimize")) energy_minimize(cell, state, *interaction, mt, step);
+            else std::cout << "未知のキーワードです。" << std::endl;
+        }
+    } else {
+        md::utils::NeighbourList<CellType> nl(*state, cutoff, margin);
+        nl.generate(*state, cell);
+        auto interaction = md::utils::initialize::build_interaction(j.at("common_settings").at("interactions").at("potentials"), *state, cell, &nl);
 
-    for (const auto& step : j["steps"]) {
-        std::string name = step.at("name");
-        std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
-        if (step.contains("simulation")) simulate(cell, state, *interaction, mt, step);
-        else if (step.contains("minimize")) energy_minimize(cell, state, *interaction, mt, step);
-        else std::cout << "未知のキーワードです。" << std::endl;
+        for (const auto& step : j["steps"]) {
+            std::string name = step.at("name");
+            std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
+            if (step.contains("simulation")) simulate(cell, state, *interaction, mt, step);
+            else if (step.contains("minimize")) energy_minimize(cell, state, *interaction, mt, step);
+            else std::cout << "未知のキーワードです。" << std::endl;
+        }
     }
 }
 

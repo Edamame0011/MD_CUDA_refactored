@@ -4,6 +4,8 @@
 #include <md/core/State.cuh>
 
 namespace md {
+    extern __constant__ float c_target_temperature;
+
     class Thermostat {
         public: 
             virtual ~Thermostat() = default;

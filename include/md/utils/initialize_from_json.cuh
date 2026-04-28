@@ -13,6 +13,7 @@
 #include <md/core/Simulator.cuh>
 #include <md/integrators/ConstantVolume.cuh>
 #include <md/interactions/LJPotential.cuh>
+#include <md/interactions/LJPotential_CLL.cuh>
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
@@ -147,6 +148,19 @@ namespace md::utils::initialize {
         std::string p_type = p_setting.at("type");
         if (p_type == "lennard_jones") {
             auto pot = init_LJPotential_from_json(p_setting, state, cell, nl);
+            return pot;
+        /*
+        } else if (p_type == "NNP_TorchScript") {
+            return std::make_unique<md::interactions::NNPTorchScript<CellType>>(state, cell, p_setting.at("cutoff"), nl, p_setting.at("model_path"));
+        }
+        */
+        } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+    }
+
+    std::unique_ptr<md::Interaction> build_interaction(const json& p_setting, md::State& state, md::cells::CubicCell& cell, md::utils::NeighbourList_CLL* nl) {
+        std::string p_type = p_setting.at("type");
+        if (p_type == "lennard_jones") {
+            auto pot = init_LJPotential_CLL_from_json(p_setting, state, cell, nl);
             return pot;
         /*
         } else if (p_type == "NNP_TorchScript") {

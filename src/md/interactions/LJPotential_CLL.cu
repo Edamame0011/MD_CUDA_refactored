@@ -1,8 +1,10 @@
-#include <md/interactions/LJPotential.cuh>
+#include <md/interactions/LJPotential_CLL.cuh>
 #include <md/cells/CubicCell.cuh>
-
+#include <thrust/sort.h>
 #include <thrust/transform_reduce.h>
 #include <cub/cub.cuh>
+
+using CubicCell = md::cells::CubicCell;
 
 namespace {
     __host__ __device__ __forceinline__ float LJpotential(const float rij1, const float sij1) {
@@ -23,7 +25,6 @@ namespace {
         return -24.0f / rij1 * sij6 * (2.0f * sij6 - rij6) / (rij6 * rij6);
     }
 
-    template <typename CellType>
     __global__ void calc_force_kernel(
         int num_species, 
         int num_atoms, 
@@ -31,9 +32,9 @@ namespace {
         dfloat3 pos, 
         dfloat3 force, 
         lj_params params, 
-        const int* __restrict__ list, 
-        const int* __restrict__ count, 
-        CellType cell
+        const unsigned int* __restrict__ list, 
+        const unsigned int* __restrict__ count, 
+        CubicCell cell
     ) {
         int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
         int warp_id = global_tid / 32;
@@ -101,24 +102,23 @@ namespace {
         }
     }
 
-    template <typename CellType>
     struct CalcPotential {
         const dfloat3 pos;
         const lj_params params;
         int num_species;
         int max_neighbours;
-        const int* __restrict__ list;
-        const int* __restrict__ count;
-        CellType cell;
+        const unsigned int* __restrict__ list;
+        const unsigned int* __restrict__ count;
+        CubicCell cell;
 
         CalcPotential(
             dfloat3 _pos, 
             lj_params _params,  
             int _num_species, 
             int _max_neighbours,
-            const int* _list,
-            const int* _count,
-            CellType _cell
+            const unsigned int* _list,
+            const unsigned int* _count,
+            CubicCell _cell
         ) : 
         pos(_pos), 
         params(_params),
@@ -128,7 +128,7 @@ namespace {
         count(_count),
         cell(_cell) {}
 
-        __device__ float operator() (int i) {
+        __device__ float operator() (const int i) const {
             float potential = 0.0f;
 
             const auto pxi = pos.x[i];
@@ -160,7 +160,7 @@ namespace {
                     const auto rij1 = sqrtf(dist_sq);
                     const auto sij1 = params.sigma[si * num_species + sj];
 
-                    auto p = LJpotential(rij1, sij1) - LJpotential(r_c, sij1) - params.deriv_1st_LJpotential_cutoff[si * num_species + sj] * (rij1 - r_c);
+                    float p = LJpotential(rij1, sij1) - LJpotential(r_c, sij1) - params.deriv_1st_LJpotential_cutoff[si * num_species + sj] * (rij1 - r_c);
                     p *= params.epsilon[si * num_species + sj];
 
                     potential += p;
@@ -169,15 +169,44 @@ namespace {
             return potential;
         }
     };
+
+    __global__ void apply_sort_kernel(
+        const dfloat3 old_force, 
+        dfloat3 new_force, 
+        const unsigned int* sorted_id, 
+        const int num_atoms
+    ) {
+        unsigned int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        if (idx >= num_atoms) return;
+
+        auto old_idx = sorted_id[idx];
+
+        new_force.x[old_idx] = old_force.x[idx];
+        new_force.y[old_idx] = old_force.y[idx];
+        new_force.z[old_idx] = old_force.z[idx];
+    }
+
+    __global__ void apply_forward_sort_kernel(
+        const int* __restrict__ original, 
+        int* __restrict__ sorted, 
+        const unsigned int* __restrict__ sorted_id, 
+        const int num_atoms
+    ) {
+        unsigned int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        if (idx >= num_atoms) return;
+
+        auto old_idx = sorted_id[idx];
+        sorted[idx] = original[old_idx];
+    }
 }
 
 using namespace md::interactions;
 
-template <typename CellType>
-LJPotential<CellType>::LJPotential(
+LJPotential_CLL::LJPotential_CLL(
+    int _num_atoms, 
     int _num_species, 
-    CellType _cell, 
-    md::utils::NeighbourList<CellType> *_NL, 
+    CubicCell _cell, 
+    md::utils::NeighbourList_CLL *_NL, 
     std::vector<float> _sigma, 
     std::vector<float> _epsilon, 
     std::vector<float> _cutoff, 
@@ -185,18 +214,23 @@ LJPotential<CellType>::LJPotential(
 ) : num_species(_num_species), cell(_cell), NL(_NL) {
     // メモリの確保
     size_t size = num_species * num_species;
-    size_t N = _identifier.size();
+    size_t N = _num_atoms;
     cudaMalloc(&params.sigma, size * sizeof(float));
     cudaMalloc(&params.epsilon, size * sizeof(float));
     cudaMalloc(&params.cutoff, size * sizeof(float));
     cudaMalloc(&params.deriv_1st_LJpotential_cutoff, size * sizeof(float));
     cudaMalloc(&params.identifier, N * sizeof(int));
+    cudaMalloc(&original_identifier, N * sizeof(int));
+
+    cudaMalloc(&force_buffer.x, _num_atoms * sizeof(float));
+    cudaMalloc(&force_buffer.y, _num_atoms * sizeof(float));
+    cudaMalloc(&force_buffer.z, _num_atoms * sizeof(float));
 
     // データの転送
     cudaMemcpy(params.sigma, _sigma.data(), size * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(params.epsilon, _epsilon.data(), size * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(params.cutoff, _cutoff.data(), size * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(params.identifier, _identifier.data(), N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(original_identifier, _identifier.data(), N * sizeof(int), cudaMemcpyHostToDevice);
 
     // カットオフ距離によるLJポテンシャルの一階微分を事前に計算
     std::vector<float> h_deriv_1st_LJpotential_cutoff(size);
@@ -212,51 +246,84 @@ LJPotential<CellType>::LJPotential(
     cudaMemcpy(params.deriv_1st_LJpotential_cutoff, h_deriv_1st_LJpotential_cutoff.data(), size * sizeof(float), cudaMemcpyHostToDevice);
 }
 
-template <typename CellType>
-LJPotential<CellType>::~LJPotential() {
+LJPotential_CLL::~LJPotential_CLL() {
     cudaFree(params.sigma);
     cudaFree(params.epsilon);
     cudaFree(params.cutoff);
     cudaFree(params.identifier);
+    cudaFree(original_identifier);
     cudaFree(params.deriv_1st_LJpotential_cutoff);
+    cudaFree(force_buffer.x);
+    cudaFree(force_buffer.y);
+    cudaFree(force_buffer.z);
 }
 
-template <typename CellType>
-void LJPotential<CellType>::calc_force(State& state) {
+void LJPotential_CLL::calc_force(State& state) {
     NL->check(state, cell);
     auto N = state.n_atoms;
     auto view = state.get_view();
 
-    constexpr int block_size = 128;
+    constexpr int block_size = 256;
     constexpr int warps_per_block = block_size / 32;
-
+    int grid_size_sort = (N + block_size - 1) / block_size;
     int grid_size = (N + warps_per_block - 1) / warps_per_block;
+
+    auto& cll = NL->get_cell_list();
+    auto pid = cll.get_particle_id();
+    dfloat3 sorted_pos = cll.get_sorted_pos();
+
+    apply_forward_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
+        original_identifier, 
+        params.identifier, 
+        pid, 
+        N
+    );
 
     calc_force_kernel<<<grid_size, block_size, 0, state.stream>>>(
         num_species, 
         N, 
         NL->get_max_neighbours(), 
-        view.pos, 
-        view.force, 
+        cll.get_sorted_pos(), 
+        force_buffer,  
         params, 
         NL->get_list(), 
         NL->get_count(), 
         cell
     );
+
+    apply_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
+        force_buffer, 
+        view.force, 
+        pid, 
+        N
+    );
 }
 
-template <typename CellType>
-void LJPotential<CellType>::calc_potential(State& state) {
+void LJPotential_CLL::calc_potential(State& state) {
+    NL->check(state, cell);
+
     auto N = state.n_atoms;
     auto view = state.get_view();
+
+    constexpr int block_size = 256;
+    int grid_size_sort = (N + block_size - 1) / block_size;
+    auto& cll = NL->get_cell_list();
+    auto pid = cll.get_particle_id();
+
+    apply_forward_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
+        original_identifier, 
+        params.identifier, 
+        pid, 
+        N
+    );
 
     // ポテンシャルの計算
     state.potential_energy = thrust::transform_reduce(
         thrust::cuda::par.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
-        CalcPotential<CellType>(
-            view.pos, 
+        CalcPotential(
+            cll.get_sorted_pos(), 
             params, 
             num_species, 
             NL->get_max_neighbours(),
@@ -268,6 +335,3 @@ void LJPotential<CellType>::calc_potential(State& state) {
         thrust::plus<float>()
     );
 }
-
-
-template class LJPotential<md::cells::CubicCell>;

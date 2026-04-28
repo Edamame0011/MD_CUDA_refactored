@@ -6,9 +6,11 @@
 namespace md::temperature_schedulers {
     class ConstantScheduler : public TemperatureScheduler {
         public: 
-            ConstantScheduler(float _target_temperature): target_temperature(_target_temperature) {}
-            float get_temperature(const int step) override { 
-                return target_temperature; 
+            ConstantScheduler(float _target_temperature): target_temperature(_target_temperature) {
+                cudaMemcpyToSymbol(c_target_temperature, &this->target_temperature, sizeof(float), 0, cudaMemcpyHostToDevice);
+            }
+            void get_temperature(State& state) override { 
+                // 何もしない
             }
         private:
             float target_temperature;

@@ -25,6 +25,8 @@ namespace md::utils {
             int* get_count() { return this->count; }
             int get_max_neighbours() { return this->max_neighbours; }
         
+            NeighbourList(const NeighbourList&) = delete;
+            NeighbourList& operator=(const NeighbourList&) = delete;
         private:
             float cutoff, margin;
             dfloat3 nl_conf;

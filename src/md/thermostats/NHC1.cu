@@ -6,12 +6,21 @@
 #include <cmath>
 
 namespace {
+    __global__ void update_mass (
+        float *mass, 
+        float tau, 
+        float boltzmann_constant, 
+        float dof
+    ) {
+        *mass = tau * tau * boltzmann_constant * md::c_target_temperature * dof;
+    }
+
     __global__ void calc_scaling_factor (
         float *kinetic_energy, 
         ChainState c_state, 
-        float m0_inv, 
-        float targ_kin, 
-        float dt
+        float dt, 
+        float dof, 
+        float boltzmann_constant
     ) {
         if (threadIdx.x == 0 && blockIdx.x == 0) {
             auto AKIN = 2.0f * *kinetic_energy;
@@ -21,6 +30,9 @@ namespace {
             auto f0 = *c_state.force;
             auto v0 = *c_state.vel;
             auto p0 = *c_state.pos;
+            auto m0_inv = 1.0f / *c_state.mass;
+
+            auto targ_kin = md::c_target_temperature * dof * boltzmann_constant;
 
             // 逆順の更新
             f0 = (AKIN - targ_kin) * m0_inv;
@@ -65,6 +77,7 @@ NHC1::NHC1(const float _tau, TemperatureScheduler *_scheduler)
     cudaMalloc(&c_state.pos, sizeof(float));
     cudaMalloc(&c_state.vel, sizeof(float));
     cudaMalloc(&c_state.force, sizeof(float));
+    cudaMalloc(&c_state.mass, sizeof(float));
     cudaMalloc(&c_state.scaling_factor, sizeof(float));
 }
 
@@ -72,17 +85,19 @@ NHC1::~NHC1() {
     cudaFree(c_state.pos);
     cudaFree(c_state.vel);
     cudaFree(c_state.force);
+    cudaFree(c_state.mass);
     cudaFree(c_state.scaling_factor);
 }
 
 void NHC1::init(State& state) {
-    this->dof = 3 * state.n_atoms;
+    this->dof = 3.0f * state.n_atoms;
     this->calculator = std::make_unique<KinEnergyCalculator>(state);
 
     float zero = 0.0f;
     cudaMemcpy(c_state.pos, &zero, sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(c_state.vel, &zero, sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(c_state.force, &zero, sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(c_state.mass, &zero, sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(c_state.scaling_factor, &zero, sizeof(float), cudaMemcpyHostToDevice);
 }
 
@@ -97,17 +112,22 @@ void NHC1::stepTwo(State& state) {
 void NHC1::op(State& state) {
     auto N = state.n_atoms;
     auto view = state.get_view();
-    auto target_temperature = this->scheduler->get_temperature(state.current_steps);
-    c_mass = tau * tau * boltzmann_constant * target_temperature * dof;
+    this->scheduler->get_temperature(state);
+    update_mass<<<1, 1, 0, state.stream>>>(
+        c_state.mass, 
+        tau, 
+        boltzmann_constant, 
+        dof
+    );
 
     calculator->calc_kinetic_energy(state);
     
     calc_scaling_factor<<<1, 1, 0, state.stream>>>(
         view.kinetic_energy, 
         this->c_state, 
-        1.0f / c_mass, 
-        target_temperature * dof * boltzmann_constant, 
-        state.dt
+        state.dt, 
+        dof, 
+        boltzmann_constant
     );
 
     thrust::for_each(

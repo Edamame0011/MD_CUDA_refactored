@@ -160,8 +160,10 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
     // NLの作成
-    int num_threads = 128;
-    int num_blocks = (N + num_threads - 1) / num_threads;
+    constexpr int num_threads = 256;
+    constexpr int warps_per_block = num_threads / 32;
+
+    int num_blocks = (N + warps_per_block - 1) / warps_per_block;
     generate_nl<CellType><<<num_blocks, num_threads>>>(
         this->flag, 
         view.pos, 
@@ -232,7 +234,7 @@ void NeighbourList<CellType>::check(State& state, CellType cell) {
         margin * margin
     );
 
-    constexpr int num_threads = 128;
+    constexpr int num_threads = 256;
     constexpr int warps_per_block = num_threads / 32;
 
     int num_blocks = (N + warps_per_block - 1) / warps_per_block;

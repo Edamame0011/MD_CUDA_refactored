@@ -35,16 +35,17 @@ namespace {
         float *scaling_factor, 
         curandState* state, 
         float dof, 
-        float targ_kin, 
         float tau_inv, 
+        float boltzmann_constant, 
         float dt  
     ) {
+        float targ_kin = (dof * boltzmann_constant * md::c_target_temperature) / 2.0f;
         float r1 = curand_normal(state);
         float r2 = curand_normal(state);
         float g = generate_gamma(state, (dof - 2.0f) / 2.0f, 1.0f);
         float current_kin = *kinetic_energy;
         float f = expf(-dt * tau_inv);
-        float alpha2 = f + (targ_kin * (1 - f) * (r1 * r1 + r2 * r2 + 2 * g)) / (dof * current_kin) + 2 * r1 * sqrtf((targ_kin * f * (1 - f)) / (dof * current_kin));
+        float alpha2 = f + (targ_kin * (1.0f - f) * (r1 * r1 + r2 * r2 + 2 * g)) / (dof * current_kin) + 2.0f * r1 * sqrtf((targ_kin * f * (1.0f - f)) / (dof * current_kin));
 
         *scaling_factor = sqrtf(alpha2);
     }
@@ -82,9 +83,7 @@ void BussiThermostat::init(State& state, unsigned long long seed) {
 }
 
 void BussiThermostat::stepTwo(State& state) {
-    float target_temperature = this->scheduler->get_temperature(state.current_steps);
-    float targ_kin = (dof * boltzmann_constant * target_temperature) / 2;
-    
+    this->scheduler->get_temperature(state);    
     calculator->calc_kinetic_energy(state);
 
     auto view = state.get_view();
@@ -95,8 +94,8 @@ void BussiThermostat::stepTwo(State& state) {
         this->scaling_factor, 
         this->curand_state, 
         this->dof, 
-        targ_kin, 
         1.0f / tau, 
+        boltzmann_constant, 
         state.dt
     );
 

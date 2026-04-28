@@ -1,6 +1,7 @@
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/core/constant.h>
 #include <thrust/execution_policy.h>
+#include <md/thermostats/Thermostat.cuh>
 
 namespace {
     struct InitCurand {
@@ -16,7 +17,7 @@ namespace {
     };
 
     struct StepOne {
-        const float dt_half, dt_half_conv, c1, c3;
+        const float dt_half, dt_half_conv, c1, boltzmann_constant;
         dfloat3 pos, vel;
         const dfloat3 force;
         float* __restrict__ mass; 
@@ -33,7 +34,7 @@ namespace {
             float _dt_half, 
             float _dt_half_conv, 
             float _c1, 
-            float _c3
+            float _boltzmann_constant
         ) : pos(_pos), 
             vel(_vel), 
             force(_force), 
@@ -43,13 +44,14 @@ namespace {
             dt_half(_dt_half), 
             dt_half_conv(_dt_half_conv), 
             c1(_c1), 
-            c3(_c3) {}
+            boltzmann_constant(_boltzmann_constant) {}
         
         __device__ void operator() (const int idx) {
             auto cs = states[idx];
             const auto m = mass[idx];
             const auto mi = mass_inv[idx];
-            const auto mass_sq_inv = rsqrtf(m);
+            const float mass_sq_inv = rsqrtf(m);
+            const float c3 = sqrtf(boltzmann_constant * md::c_target_temperature * (1.0f - c1 * c1));
 
             // 速度の更新1
             auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
@@ -131,8 +133,7 @@ void LangevinIntegrator::init(const State& state, unsigned long long seed) {
 
 void LangevinIntegrator::integrateStepOne(State& state) {
     // c3の計算
-    const auto target_temperature = this->scheduler->get_temperature(state.current_steps);
-    const auto c3 = std::sqrt(boltzmann_constant * target_temperature * (1 - c1 * c1));
+    this->scheduler->get_temperature(state);
 
     const auto dt_half = state.dt * 0.5;
     const auto dt_half_conv = dt_half * conversion_factor;
@@ -154,7 +155,7 @@ void LangevinIntegrator::integrateStepOne(State& state) {
             dt_half, 
             dt_half_conv, 
             this->c1, 
-            c3
+            boltzmann_constant
         )
     );
 }
