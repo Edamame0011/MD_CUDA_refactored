@@ -244,6 +244,11 @@ LJPotential_CLL::LJPotential_CLL(
 
     // 転送
     cudaMemcpy(params.deriv_1st_LJpotential_cutoff, h_deriv_1st_LJpotential_cutoff.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+
+    int minGridSize;
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_force_num_threads, calc_force_kernel, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &apply_sort_num_threads, apply_sort_kernel, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &apply_forward_sort_num_threads, apply_forward_sort_kernel, 0, 0);
 }
 
 LJPotential_CLL::~LJPotential_CLL() {
@@ -263,23 +268,23 @@ void LJPotential_CLL::calc_force(State& state) {
     auto N = state.n_atoms;
     auto view = state.get_view();
 
-    constexpr int block_size = 256;
-    constexpr int warps_per_block = block_size / 32;
-    int grid_size_sort = (N + block_size - 1) / block_size;
-    int grid_size = (N + warps_per_block - 1) / warps_per_block;
+    int grid_size_forward_sort = (N + apply_forward_sort_num_threads - 1) / apply_forward_sort_num_threads;
+    int grid_size_sort = (N + apply_sort_num_threads - 1) / apply_sort_num_threads;
+    int warps_per_block = calc_force_num_threads / 32;
+    int calc_force_grid_size = (N + warps_per_block - 1) / warps_per_block;
 
     auto& cll = NL->get_cell_list();
     auto pid = cll.get_particle_id();
     dfloat3 sorted_pos = cll.get_sorted_pos();
 
-    apply_forward_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
+    apply_forward_sort_kernel<<<grid_size_forward_sort, apply_forward_sort_num_threads, 0, state.stream>>>(
         original_identifier, 
         params.identifier, 
         pid, 
         N
     );
 
-    calc_force_kernel<<<grid_size, block_size, 0, state.stream>>>(
+    calc_force_kernel<<<calc_force_grid_size, calc_force_num_threads, 0, state.stream>>>(
         num_species, 
         N, 
         NL->get_max_neighbours(), 
@@ -291,7 +296,7 @@ void LJPotential_CLL::calc_force(State& state) {
         cell
     );
 
-    apply_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
+    apply_sort_kernel<<<grid_size_sort, apply_sort_num_threads, 0, state.stream>>>(
         force_buffer, 
         view.force, 
         pid, 

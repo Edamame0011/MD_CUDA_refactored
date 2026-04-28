@@ -44,6 +44,11 @@ namespace md::interactions {
             md::utils::NeighbourList_CLL *NL;
 
             dfloat3 force_buffer;
+
+            // カーネル起動スレッド数
+            int calc_force_num_threads;
+            int apply_sort_num_threads;
+            int apply_forward_sort_num_threads;
     };
 }
 

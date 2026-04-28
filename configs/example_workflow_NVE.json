@@ -7,7 +7,7 @@
     "common_settings": {
         "atoms": {
             "mode": "generate_binary_lj", 
-            "n_atoms": 10000, 
+            "n_atoms": 1000, 
             "density": 1.2, 
             "ratio": [0.8, 0.2]
         }, 
@@ -17,7 +17,8 @@
         "interactions": {
             "neighbour_list": {
                 "cutoff": 2.0, 
-                "margin": 0.7
+                "margin": 0.7, 
+                "cell_list": false
             }, 
             "potentials": {
                 "type": "lennard_jones", 
@@ -32,7 +33,7 @@
         {
             "name": "equilibration run", 
             "simulation": {
-                "dt": 5e-4, 
+                "dt": 5e-3, 
                 "simulation_time": 1e+2, 
                 "ensemble": {
                     "type": "NVT", 
@@ -51,7 +52,7 @@
         {
             "name": "production run", 
             "simulation": {
-                "dt": 5e-4, 
+                "dt": 5e-3, 
                 "simulation_time": 1e+2, 
                 "cell_type": "cubic", 
                 "ensemble": {

@@ -148,6 +148,10 @@ NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin,
     cudaMalloc(&this->top2, sizeof(Top2));
     cudaMalloc(&this->flag, sizeof(bool));
     cudaMemset(this->flag, 1, sizeof(bool));
+
+    int minGridSize;
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &generate_nl_num_threads, generate_nl_kernel, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &update_nl_conf_num_threads, update_nl_conf_kernel, 0, 0);
 }
 
 NeighbourList_CLL::~NeighbourList_CLL() {
@@ -172,9 +176,10 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
     cll.sort(state, flag);
 
     // NLの作成
-    int num_threads = 256;
-    int num_blocks = (N + num_threads - 1) / num_threads;
-    generate_nl_kernel<<<num_blocks, num_threads>>>(
+    int generate_nl_num_blocks = (N + generate_nl_num_threads - 1) / generate_nl_num_threads;
+    int update_nl_conf_num_blocks = (N + update_nl_conf_num_threads - 1) / update_nl_conf_num_threads;
+
+    generate_nl_kernel<<<generate_nl_num_blocks, generate_nl_num_threads>>>(
         flag, 
         cll.get_sorted_pos(), 
         N, 
@@ -188,7 +193,7 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
         cell
     );
 
-    update_nl_conf_kernel<<<num_blocks, num_threads>>>(
+    update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads>>>(
         flag, 
         view.pos, 
         nl_conf, 
@@ -255,11 +260,10 @@ void NeighbourList_CLL::check(State& state, CubicCell cell) {
     cll.generate(state, flag);
     cll.sort(state, flag);
 
-    constexpr int num_threads = 256;
+    int generate_nl_num_blocks = (N + generate_nl_num_threads - 1) / generate_nl_num_threads;
+    int update_nl_conf_num_blocks = (N + update_nl_conf_num_threads - 1) / update_nl_conf_num_threads;
 
-    int num_blocks = (N + num_threads - 1) / num_threads;
-
-    generate_nl_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
+    generate_nl_kernel<<<generate_nl_num_blocks, generate_nl_num_threads, 0, state.stream>>>(
         flag, 
         cll.get_sorted_pos(), 
         N, 
@@ -273,7 +277,7 @@ void NeighbourList_CLL::check(State& state, CubicCell cell) {
         cell
     );
 
-    update_nl_conf_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
+    update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads, 0, state.stream>>>(
         flag, 
         view.pos, 
         nl_conf, 

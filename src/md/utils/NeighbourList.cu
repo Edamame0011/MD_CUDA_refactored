@@ -138,6 +138,9 @@ NeighbourList<CellType>::NeighbourList(State& state, float _cutoff, float _margi
     cudaMalloc(&this->top2, sizeof(Top2));
     cudaMalloc(&this->flag, sizeof(bool));
     cudaMemset(this->flag, 1, sizeof(bool));
+
+    int minGridSize;
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &generate_nl_num_threads, generate_nl<CellType>, 0, 0);
 }
 
 template <typename CellType>
@@ -160,11 +163,10 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
     // NLの作成
-    constexpr int num_threads = 256;
-    constexpr int warps_per_block = num_threads / 32;
+    int warps_per_block = generate_nl_num_threads / 32;
 
     int num_blocks = (N + warps_per_block - 1) / warps_per_block;
-    generate_nl<CellType><<<num_blocks, num_threads>>>(
+    generate_nl<CellType><<<num_blocks, generate_nl_num_threads>>>(
         this->flag, 
         view.pos, 
         this->nl_conf, 
@@ -234,12 +236,11 @@ void NeighbourList<CellType>::check(State& state, CellType cell) {
         margin * margin
     );
 
-    constexpr int num_threads = 256;
-    constexpr int warps_per_block = num_threads / 32;
+    int warps_per_block = generate_nl_num_threads / 32;
 
     int num_blocks = (N + warps_per_block - 1) / warps_per_block;
 
-    generate_nl<CellType><<<num_blocks, num_threads, 0, state.stream>>>(
+    generate_nl<CellType><<<num_blocks, generate_nl_num_threads, 0, state.stream>>>(
         this->flag, 
         view.pos, 
         this->nl_conf, 

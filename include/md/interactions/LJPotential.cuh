@@ -44,6 +44,9 @@ namespace md::interactions {
             
             CellType cell;
             md::utils::NeighbourList<CellType> *NL;
+
+            // カーネル起動スレッド数
+            int calc_force_num_threads;
     };
 }
 

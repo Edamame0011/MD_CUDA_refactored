@@ -210,6 +210,9 @@ LJPotential<CellType>::LJPotential(
 
     // 転送
     cudaMemcpy(params.deriv_1st_LJpotential_cutoff, h_deriv_1st_LJpotential_cutoff.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+
+    int minGridSize;
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_force_num_threads, calc_force_kernel<CellType>, 0, 0);
 }
 
 template <typename CellType>
@@ -227,12 +230,11 @@ void LJPotential<CellType>::calc_force(State& state) {
     auto N = state.n_atoms;
     auto view = state.get_view();
 
-    constexpr int block_size = 128;
-    constexpr int warps_per_block = block_size / 32;
+    int warps_per_block = calc_force_num_threads / 32;
 
     int grid_size = (N + warps_per_block - 1) / warps_per_block;
 
-    calc_force_kernel<<<grid_size, block_size, 0, state.stream>>>(
+    calc_force_kernel<<<grid_size, calc_force_num_threads, 0, state.stream>>>(
         num_species, 
         N, 
         NL->get_max_neighbours(), 

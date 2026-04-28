@@ -17,7 +17,8 @@
         "interactions": {
             "neighbour_list": {
                 "cutoff": 2.0, 
-                "margin": 1.0
+                "margin": 0.7, 
+                "cell_list": true
             }, 
             "potentials": {
                 "type": "lennard_jones", 
@@ -36,9 +37,9 @@
                 "simulation_time": 1e+2, 
                 "ensemble": {
                     "type": "NVT", 
-                    "thermostat": "Nose-Hoover", 
-                    "length": 1, 
-                    "tau": 1, 
+                    "thermostat": "Bussi", 
+                    "tau": 0.02, 
+                    "seed": 12345, 
                     "temperature": 1.0, 
                     "scheduler": "constant"
                 }

@@ -17,7 +17,8 @@
         "interactions": {
             "neighbour_list": {
                 "cutoff": 2.0, 
-                "margin": 0.7
+                "margin": 0.7, 
+                "cell_list": true
             }, 
             "potentials": {
                 "type": "lennard_jones", 

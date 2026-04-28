@@ -33,6 +33,10 @@ namespace md::utils {
             // cub用のバッファとそのサイズ
             void* d_temp_storage = nullptr;
             size_t temp_storage_bytes = 0;
+
+            // カーネル呼び出しの際のスレッド数
+            int calc_cell_id_num_threads;
+            int apply_sort_num_threads;
     };
 }
 

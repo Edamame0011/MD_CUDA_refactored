@@ -107,6 +107,11 @@ CellList::CellList(int _M, float _Lbox, State& state) : M(_M), Lbox(_Lbox) {
     );
 
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
+
+    // 最適なスレッド数を計算
+    int minGridSize;
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_cell_id_num_threads, calc_cell_id_kernel, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &apply_sort_num_threads, apply_sort_kernel, 0, 0);
 }
 
 CellList::~CellList() {
@@ -124,10 +129,9 @@ void CellList::generate(State& state, bool* flag) {
     auto view = state.get_view();
     auto N = state.n_atoms;
 
-    int num_threads = 256;
-    int num_blocks = (N + num_threads - 1) / num_threads;
+    int num_blocks = (N + calc_cell_id_num_threads - 1) / calc_cell_id_num_threads;
 
-    calc_cell_id_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
+    calc_cell_id_kernel<<<num_blocks, calc_cell_id_num_threads, 0, state.stream>>>(
         flag, 
         view.pos, 
         cell_id, 
@@ -146,8 +150,7 @@ void CellList::sort(State& state, bool* flag) {
     const int num_cells = M * M * M;
 
     // ソート
-    int num_threads = 256;
-    int num_blocks = (N + num_threads - 1) / num_threads;
+    int num_blocks = (N + apply_sort_num_threads - 1) / apply_sort_num_threads;
 
     check_and_sort_kernel<<<1, 1, 0, state.stream>>>(
         flag, 
@@ -160,7 +163,7 @@ void CellList::sort(State& state, bool* flag) {
         N
     ); 
 
-    apply_sort_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
+    apply_sort_kernel<<<num_blocks, apply_sort_num_threads, 0, state.stream>>>(
         view.pos, 
         sorted_pos, 
         sorted_particle_id, 
