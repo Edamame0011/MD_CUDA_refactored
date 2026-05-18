@@ -5,6 +5,8 @@ project(MD_MLP)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+find_package(Python3 COMPONENTS Development REQUIRED)
+
 add_definitions(-U_FORTIFY_SOURCE)
 add_definitions(-D_FORTIFY_SOURCE=0)
 
@@ -34,6 +36,8 @@ endif()
 file(GLOB_RECURSE MD_SOURCES 
     "src/md/*.cpp" 
     "src/md/*.cu"
+    "/home/nozawa/SchNet/CUDA/calc_force_kernel.cu"
+    "/home/nozawa/SchNet/CUDA/message_agg_kernel.cu"
 )
 
 # 実行ファイルを作成
@@ -42,8 +46,15 @@ add_executable(MD_MLP
     ${MD_SOURCES}
 )
 
+target_include_directories(MD_MLP PRIVATE 
+    ${PROJECT_SOURCE_DIR}/include
+    ${Python3_INCLUDE_DIRS}
+    ${TORCH_INCLUDE_DIRS}
+    ${CUDNN_INCLUDE_DIR}
+)
+
 # libtorch + cuDNN をリンク
-target_link_libraries(MD_MLP curand ${TORCH_LIBRARIES} ${CUDNN_LIBRARY})
+target_link_libraries(MD_MLP curand ${Python3_LIBRARIES} ${TORCH_LIBRARIES} ${CUDNN_LIBRARY})
 
 target_compile_options(MD_MLP PRIVATE 
     $<$<COMPILE_LANGUAGE:CUDA>:

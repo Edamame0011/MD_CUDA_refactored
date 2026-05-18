@@ -36,7 +36,7 @@ void simulate(CellType& cell, md::State* state, md::Interaction& interaction, st
     auto start = std::chrono::steady_clock::now();
 
     // シミュレーションの実行
-    simulator.run(s_setting.at("simulation_time"));
+    simulator.run(s_setting.at("simulation_time"), s_setting.at("use_graph"));
     cudaDeviceSynchronize();
     
     auto end = std::chrono::steady_clock::now();

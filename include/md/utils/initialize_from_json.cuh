@@ -14,6 +14,7 @@
 #include <md/integrators/ConstantVolume.cuh>
 #include <md/interactions/LJPotential.cuh>
 #include <md/interactions/LJPotential_CLL.cuh>
+#include <md/interactions/NNP.cuh>
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
@@ -55,7 +56,6 @@ namespace md::utils::initialize {
             
             float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
             state = md::utils::initialize::generate_binary_lj(n_atoms, density, lattice, a_ratio, mt);
-        /*
         } else if (mode == "from_file") {
             std::string format = a_setting.value("format", "xyz");
             if (format == "xyz") {
@@ -63,7 +63,6 @@ namespace md::utils::initialize {
             } else {
                 throw std::runtime_error("未対応のファイルフォーマットです: " + format);
             }
-        */
         } else {
             throw std::runtime_error("未対応のatoms modeです: " + mode);
         }
@@ -149,11 +148,8 @@ namespace md::utils::initialize {
         if (p_type == "lennard_jones") {
             auto pot = init_LJPotential_from_json(p_setting, state, cell, nl);
             return pot;
-        /*
-        } else if (p_type == "NNP_TorchScript") {
-            return std::make_unique<md::interactions::NNPTorchScript<CellType>>(state, cell, p_setting.at("cutoff"), nl, p_setting.at("model_path"));
-        }
-        */
+        } else if (p_type == "NNP") {
+            return std::make_unique<md::interactions::NNP<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
         } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
     }
 
@@ -164,8 +160,7 @@ namespace md::utils::initialize {
             return pot;
         /*
         } else if (p_type == "NNP_TorchScript") {
-            return std::make_unique<md::interactions::NNPTorchScript<CellType>>(state, cell, p_setting.at("cutoff"), nl, p_setting.at("model_path"));
-        }
+            return std::make_unique<md::interactions::NNP<CellType>>(state, cell, p_setting.at("cutoff"), nl, p_setting.at("model_path"));
         */
         } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
     }
