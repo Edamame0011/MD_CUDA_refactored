@@ -1,5 +1,5 @@
-#ifndef __NNP_CUH__
-#define __NNP_CUH__
+#ifndef __NNP_CSR_CUH__
+#define __NNP_CSR_CUH__
 
 #include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
@@ -10,10 +10,10 @@
 
 namespace md::interactions {
     template <typename CellType>
-    class NNP : public Interaction {
+    class NNP_CSR : public Interaction {
         public: 
-            NNP(State& state, CellType _cell, md::utils::NeighbourList<CellType>* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
-            ~NNP();
+            NNP_CSR(State& state, CellType _cell, md::utils::NeighbourList<CellType>* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
+            ~NNP_CSR();
 
             void calc_force(State& state) override;
             void calc_potential(State& state) override;
@@ -31,17 +31,22 @@ namespace md::interactions {
             float cutoff;
 
             int* counts = nullptr;  // それぞれの原子のペア数 (N, )
-            int* offsets = nullptr; // それぞれの原子の書き込み位置 (N, )
 
             // グラフ構造の本体
-            int64_t* x_ptr = nullptr;
+            int64_t* x_ptr = nullptr;   // (N, )
+            int64_t* edge_index_ptr = nullptr;  // (num_edges, )
+            int64_t* offsets_ptr = nullptr; // (N + 1, )
             float* edge_weight_ptr = nullptr;
-            int64_t* edge_index_ptr = nullptr;
 
             // torch::Tensor型のラッパー
             torch::Tensor x;
-            torch::Tensor edge_weight;
             torch::Tensor edge_index;
+            torch::Tensor edge_weight;
+            torch::Tensor offsets;
+
+            // cub用のバッファ
+            void* d_temp_storage = nullptr;
+            size_t temp_storage_bytes = 0;
     };
 }
 

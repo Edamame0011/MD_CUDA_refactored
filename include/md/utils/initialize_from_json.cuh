@@ -27,6 +27,9 @@
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.cuh>
 #include <md/temperature_schedulers/LinearScheduler.cuh>
+#include <md/interactions/NNP_onnx.cuh>
+#include <md/interactions/NNP_CSR.cuh>
+#include <md/interactions/NNP_aoti.cuh>
 
 using json = nlohmann::json;
 
@@ -150,6 +153,12 @@ namespace md::utils::initialize {
             return pot;
         } else if (p_type == "NNP") {
             return std::make_unique<md::interactions::NNP<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
+        } else if (p_type == "NNP_onnx") {
+            return std::make_unique<md::interactions::NNP_onnx<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
+        } else if (p_type == "NNP_csr") {
+            return std::make_unique<md::interactions::NNP_CSR<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
+        } else if (p_type == "NNP_aoti") {
+            return std::make_unique<md::interactions::NNP_aoti<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
         } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
     }
 

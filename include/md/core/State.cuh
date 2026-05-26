@@ -35,15 +35,23 @@ namespace md {
             cudaStream_t stream;
 
             State(int N) {
-                cudaMalloc(&view.pos.x, N * sizeof(float));
-                cudaMalloc(&view.pos.y, N * sizeof(float));
-                cudaMalloc(&view.pos.z, N * sizeof(float));
-                cudaMalloc(&view.vel.x, N * sizeof(float));
-                cudaMalloc(&view.vel.y, N * sizeof(float));
-                cudaMalloc(&view.vel.z, N * sizeof(float));
-                cudaMalloc(&view.force.x, N * sizeof(float));
-                cudaMalloc(&view.force.y, N * sizeof(float));
-                cudaMalloc(&view.force.z, N * sizeof(float));
+                // pos・vel・forcesはx, y, zが並ぶように確保
+                float *_pos, *_vel, *_force;
+                cudaMalloc(&_pos, 3 * N * sizeof(float));
+                view.pos.x = _pos;
+                view.pos.y = _pos + N;
+                view.pos.z = _pos + 2 * N;
+
+                cudaMalloc(&_vel, 3 * N * sizeof(float));
+                view.vel.x = _vel;
+                view.vel.y = _vel + N;
+                view.vel.z = _vel + 2 * N;
+
+                cudaMalloc(&_force, 3 * N * sizeof(float));
+                view.force.x = _force;
+                view.force.y = _force + N;
+                view.force.z = _force + 2 * N;
+
                 cudaMalloc(&view.box.x, N * sizeof(int));
                 cudaMalloc(&view.box.y, N * sizeof(int));
                 cudaMalloc(&view.box.z, N * sizeof(int));

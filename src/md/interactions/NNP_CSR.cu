@@ -1,8 +1,8 @@
-#include <md/interactions/NNP.cuh>
+#include <md/interactions/NNP_CSR.cuh>
 #include <md/cells/CubicCell.cuh>
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
-#include <torch_tensorrt/torch_tensorrt.h>
+#include <cub/cub.cuh>
 
 namespace {
     template <typename CellType>
@@ -27,7 +27,7 @@ namespace {
         for (int c = 0; c < count[idx]; c ++) {
             int j = list[idx * max_neighbours + c];
 
-            if (idx >= j) continue;
+            if (idx == j) continue;
 
             const float pxj = pos.x[j];
             const float pyj = pos.y[j];
@@ -53,15 +53,14 @@ namespace {
         dfloat3 pos, 
         int64_t* __restrict__ edge_index_ptr, 
         float* __restrict__ edge_weight_ptr, 
-        const int* __restrict__ offsets,
+        const int64_t* __restrict__ offsets, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
         CellType cell, 
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours, 
-        const int num_edges,
-        const int num_pairs
+        const int num_max_edges
     ) {
         const int idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >= num_atoms) return;
@@ -74,48 +73,79 @@ namespace {
 
         for (int c = 0; c < count[idx]; c ++) {
             int j = list[idx * max_neighbours + c];
-            if (idx >= j) continue;
+            if (idx == j) continue;
 
             const float pxj = pos.x[j];
             const float pyj = pos.y[j];
             const float pzj = pos.z[j];
 
-            float dx = pxj - pxi;
-            float dy = pyj - pyi;
-            float dz = pzj - pzi;
-        
-            cell.apply_pbc(dx, dy, dz);
-    
-            const float dist_sq = dx * dx + dy * dy + dz * dz;
+            float dx, dy, dz;
+            // 常にインデックスが小さい方を基準に計算
+            if (idx < j) {
+                dx = pxj - pxi;
+                dy = pyj - pyi;
+                dz = pzj - pzi;
+                cell.apply_pbc(dx, dy, dz);
+            } else {
+                dx = pxi - pxj;
+                dy = pyi - pyj;
+                dz = pzi - pzj;
+                cell.apply_pbc(dx, dy, dz);
+                // 向きを合わせるために反転
+                dx = -dx;
+                dy = -dy;
+                dz = -dz;
+            }
             
+            const float dist_sq = dx * dx + dy * dy + dz * dz;
+
             if (dist_sq < cutoff * cutoff) {
-                // i -> j
                 edge_index_ptr[write_idx] = idx;
-                edge_index_ptr[num_edges + write_idx] = j;
+                edge_index_ptr[num_max_edges + write_idx] = j;
 
                 edge_weight_ptr[write_idx] = dx;
-                edge_weight_ptr[num_edges + write_idx] = dy;
-                edge_weight_ptr[2 * num_edges + write_idx] = dz;
-
-                // j -> iへコピー
-                int rev_idx = write_idx + num_pairs;
-                edge_index_ptr[rev_idx] = j;
-                edge_index_ptr[num_edges + rev_idx] = idx;
-
-                edge_weight_ptr[rev_idx] = -dx;
-                edge_weight_ptr[num_edges + rev_idx] = -dy;
-                edge_weight_ptr[2 * num_edges + rev_idx] = -dz;
+                edge_weight_ptr[num_max_edges + write_idx] = dy;
+                edge_weight_ptr[2 * num_max_edges + write_idx] = dz;
 
                 write_idx ++;
             }
         }
+    }
+
+    __global__ void append_total_sum_kernel(
+        const int* src_array, 
+        int64_t* dst_array, 
+        int N
+    ) {
+        dst_array[N] = dst_array[N - 1] + (int64_t)src_array[N - 1];
+    }
+
+    __global__ void padding_kernel(
+        int64_t* __restrict__ edge_index_ptr, 
+        float* __restrict__ edge_weight_ptr, 
+        const int64_t* __restrict__ total_edges, 
+        const int num_nodes, 
+        const int num_max_edges
+    ){
+        const int64_t num_edges = total_edges[0];
+        const int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        const int pad_idx = num_edges + idx;
+
+        if (pad_idx >= num_max_edges) return;
+
+        edge_index_ptr[pad_idx] = 0;
+        edge_index_ptr[num_max_edges + pad_idx] = 0;
+
+        edge_weight_ptr[pad_idx] = 1e+5f;
+        edge_weight_ptr[num_max_edges + pad_idx] = 0.0f;
+        edge_weight_ptr[2 * num_max_edges + pad_idx] = 0.0f;
     }
 }
 
 using namespace md::interactions;
 
 template <typename CellType>
-NNP<CellType>::NNP(
+NNP_CSR<CellType>::NNP_CSR(
     State& state, 
     CellType _cell, 
     md::utils::NeighbourList<CellType>* _nl, 
@@ -140,10 +170,10 @@ NNP<CellType>::NNP(
 
     // メモリの確保
     cudaMalloc(&x_ptr, N * sizeof(int64_t));
-    cudaMalloc(&edge_weight_ptr, 3 * num_max_edges * sizeof(float));
     cudaMalloc(&edge_index_ptr, 2 * num_max_edges * sizeof(int64_t));
+    cudaMalloc(&edge_weight_ptr, 3 * num_max_edges * sizeof(float));
+    cudaMalloc(&offsets_ptr, (N + 1) * sizeof(int64_t));
     cudaMalloc(&counts, N * sizeof(int));
-    cudaMalloc(&offsets, N * sizeof(int));
 
     // 原子番号はシミュレーションを通して変わらないため、最初に初期化する
     // int32_t -> int64_t
@@ -153,19 +183,46 @@ NNP<CellType>::NNP(
         view.atomic_numbers + N, 
         x_ptr
     );
+
+    // torch::Tensorをメモリのビューとして作成
+    int current_device;
+    cudaGetDevice(&current_device);
+    auto opt = torch::TensorOptions().device(torch::Device(torch::kCUDA, current_device));
+
+    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
+    edge_index = torch::from_blob(edge_index_ptr, {2, num_max_edges}, opt.dtype(torch::kInt64));
+    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_max_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
+    offsets = torch::from_blob(offsets_ptr, {N + 1}, opt.dtype(torch::kInt64));
+
+    // cubのバッファを確保
+        cub::DeviceScan::ExclusiveSum(
+        d_temp_storage, 
+        temp_storage_bytes, 
+        counts, 
+        offsets_ptr, 
+        N, 
+        state.stream
+    );
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+
+    // 3回推論しておく
+    for (int i = 0; i < 3; i ++) {
+        model.forward({x, edge_index, edge_weight, offsets});
+    }
 }
 
 template <typename CellType>
-NNP<CellType>::~NNP() {
+NNP_CSR<CellType>::~NNP_CSR() {
     cudaFree(x_ptr);
-    cudaFree(edge_weight_ptr);
     cudaFree(edge_index_ptr);
+    cudaFree(offsets_ptr);
+    cudaFree(edge_weight_ptr);
     cudaFree(counts);
-    cudaFree(offsets);
+    cudaFree(d_temp_storage);
 }
 
 template <typename CellType>
-void NNP<CellType>::create_graph(State& state) {
+void NNP_CSR<CellType>::create_graph(State& state) {
     int N = state.n_atoms;
     auto view = state.get_view();
 
@@ -184,57 +241,58 @@ void NNP<CellType>::create_graph(State& state) {
     );
 
     // 手前のインデックスまでを加算
-    thrust::exclusive_scan(
-        thrust::cuda::par.on(state.stream),
-        counts,
-        counts + N,
-        offsets
+    cub::DeviceScan::ExclusiveSum(
+        d_temp_storage, 
+        temp_storage_bytes, 
+        counts, 
+        offsets_ptr, 
+        N, 
+        state.stream
     );
-
-    int last_count, last_offset;
-    cudaMemcpyAsync(&last_count, counts + N - 1, sizeof(int), cudaMemcpyDeviceToHost, state.stream);
-    cudaMemcpyAsync(&last_offset, offsets + N - 1, sizeof(int), cudaMemcpyDeviceToHost, state.stream);
-
-    cudaStreamSynchronize(state.stream);
-
-    int num_pairs = last_offset + last_count;
-    num_edges = 2 * num_pairs;
+    // offsets_ptr[N]にnum_edgesを書き込む
+    append_total_sum_kernel<<<1, 1, 0, state.stream>>>(
+        counts, 
+        offsets_ptr, 
+        N
+    );
 
     build_graph_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
         view.pos, 
         edge_index_ptr, 
         edge_weight_ptr, 
-        offsets, 
+        offsets_ptr, 
         nl->get_list(), 
         nl->get_count(), 
         cell, 
         cutoff, 
         N, 
         nl->get_max_neighbours(), 
-        num_edges, 
-        num_pairs
+        num_max_edges
+    );
+
+    int num_blocks_edges = (num_max_edges + num_threads - 1) / num_threads;
+    padding_kernel<<<num_blocks_edges, num_threads, 0, state.stream>>>(
+        edge_index_ptr, 
+        edge_weight_ptr, 
+        offsets_ptr + N, 
+        N, 
+        num_max_edges
     );
 }
 
 template <typename CellType>
-void NNP<CellType>::calc_force(State& state) {
+void NNP_CSR<CellType>::calc_force(State& state) {
     int N = state.n_atoms;
     nl->check(state, cell);
     create_graph(state);
 
     auto view = state.get_view();
 
-    auto opt = torch::TensorOptions().device(torch::kCUDA);
-
-    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
-    edge_index = torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt64));
-    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
-
     // ストリームを指定
     c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
     c10::cuda::CUDAStreamGuard guard(torch_stream);
 
-    auto result_iv = model.forward({x, edge_index, edge_weight});
+    auto result_iv = model.forward({x, edge_index, edge_weight, offsets});
 
     auto result_tuple = result_iv.toTuple();
     auto elements = result_tuple->elements();
@@ -252,24 +310,15 @@ void NNP<CellType>::calc_force(State& state) {
 }
 
 template <typename CellType>
-void NNP<CellType>::calc_potential(State& state) {
+void NNP_CSR<CellType>::calc_potential(State& state) {
     nl->check(state, cell);
     create_graph(state);
 
-    int N = state.n_atoms;
-
-    auto view = state.get_view();
-
-    auto opt = torch::TensorOptions().device(torch::kCUDA);
-
-    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
-    edge_index = torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt64));
-    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
-
+    // ストリームを指定
     c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
     c10::cuda::CUDAStreamGuard guard(torch_stream);
 
-    auto result_iv = model.forward({x, edge_index, edge_weight});
+    auto result_iv = model.forward({x, edge_index, edge_weight, offsets});
 
     auto result_tuple = result_iv.toTuple();
     auto elements = result_tuple->elements();
@@ -279,7 +328,7 @@ void NNP<CellType>::calc_potential(State& state) {
 
     float* energy_ptr = energy.data_ptr<float>();
 
-    cudaMemcpy(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost, state.stream);
 }
 
-template class NNP<md::cells::CubicCell>;
+template class NNP_CSR<md::cells::CubicCell>;

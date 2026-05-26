@@ -3,6 +3,8 @@
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <cub/cub.cuh>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 using Top2 = md::utils::Top2;
 
@@ -186,8 +188,8 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
         this->nl_conf, 
         cell
     );
-    cub::CountingInputIterator<int> count_itr(0);
-    cub::TransformInputIterator<Top2, CalcDist<CellType>, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    thrust::counting_iterator<int> count_itr(0);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Reduce(
         this->d_temp_storage, 
@@ -215,8 +217,8 @@ void NeighbourList<CellType>::check(State& state, CellType cell) {
         this->nl_conf, 
         cell
     );
-    cub::CountingInputIterator<int> count_itr(0);
-    cub::TransformInputIterator<Top2, CalcDist<CellType>, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    thrust::counting_iterator<int> count_itr(0);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Reduce(
         this->d_temp_storage, 

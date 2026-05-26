@@ -1,5 +1,7 @@
 #include <md/thermostats/KinEnergyCalculator.cuh>
 #include <cub/cub.cuh>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 namespace {
     struct CalcKinEnergy {
@@ -27,9 +29,9 @@ KinEnergyCalculator::KinEnergyCalculator(State& state) {
     auto N = state.n_atoms;
 
     CalcKinEnergy op(view.vel.x, view.vel.y, view.vel.z, view.mass);
-    cub::CountingInputIterator<int> count_itr(0);
+    thrust::counting_iterator<int> count_itr(0);
 
-    cub::TransformInputIterator<float, CalcKinEnergy, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N);
 
@@ -45,9 +47,9 @@ void KinEnergyCalculator::calc_kinetic_energy(State& state) {
     auto N = state.n_atoms;
 
     CalcKinEnergy op(view.vel.x, view.vel.y, view.vel.z, view.mass);
-    cub::CountingInputIterator<int> count_itr(0);
+    thrust::counting_iterator<int> count_itr(0);
 
-    cub::TransformInputIterator<float, CalcKinEnergy, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N, state.stream);
 }

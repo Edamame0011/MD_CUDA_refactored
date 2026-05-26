@@ -1,6 +1,8 @@
 #include <md/utils/NeighbourList_CLL.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <cub/cub.cuh>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 using Top2 = md::utils::Top2;
 using CubicCell = md::cells::CubicCell;
@@ -208,8 +210,8 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
         this->nl_conf, 
         cell
     );
-    cub::CountingInputIterator<int> count_itr(0);
-    cub::TransformInputIterator<Top2, CalcDist, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    thrust::counting_iterator<int> count_itr(0);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Reduce(
         this->d_temp_storage, 
@@ -236,8 +238,8 @@ void NeighbourList_CLL::check(State& state, CubicCell cell) {
         this->nl_conf, 
         cell
     );
-    cub::CountingInputIterator<int> count_itr(0);
-    cub::TransformInputIterator<Top2, CalcDist, cub::CountingInputIterator<int>> trans_itr(count_itr, op);
+    thrust::counting_iterator<int> count_itr(0);
+    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
     cub::DeviceReduce::Reduce(
         this->d_temp_storage, 

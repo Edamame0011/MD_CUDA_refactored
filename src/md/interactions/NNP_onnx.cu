@@ -1,8 +1,8 @@
-#include <md/interactions/NNP.cuh>
+#include <md/interactions/NNP_onnx.cuh>
 #include <md/cells/CubicCell.cuh>
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
-#include <torch_tensorrt/torch_tensorrt.h>
+#include <thrust/execution_policy.h>
 
 namespace {
     template <typename CellType>
@@ -80,9 +80,9 @@ namespace {
             const float pyj = pos.y[j];
             const float pzj = pos.z[j];
 
-            float dx = pxj - pxi;
-            float dy = pyj - pyi;
-            float dz = pzj - pzi;
+            float dx = pxi - pxj;
+            float dy = pyi - pyj;
+            float dz = pzi - pzj;
         
             cell.apply_pbc(dx, dy, dz);
     
@@ -90,8 +90,8 @@ namespace {
             
             if (dist_sq < cutoff * cutoff) {
                 // i -> j
-                edge_index_ptr[write_idx] = idx;
-                edge_index_ptr[num_edges + write_idx] = j;
+                edge_index_ptr[write_idx] = j;
+                edge_index_ptr[num_edges + write_idx] = idx;
 
                 edge_weight_ptr[write_idx] = dx;
                 edge_weight_ptr[num_edges + write_idx] = dy;
@@ -99,8 +99,8 @@ namespace {
 
                 // j -> iへコピー
                 int rev_idx = write_idx + num_pairs;
-                edge_index_ptr[rev_idx] = j;
-                edge_index_ptr[num_edges + rev_idx] = idx;
+                edge_index_ptr[rev_idx] = idx;
+                edge_index_ptr[num_edges + rev_idx] = j;
 
                 edge_weight_ptr[rev_idx] = -dx;
                 edge_weight_ptr[num_edges + rev_idx] = -dy;
@@ -115,25 +115,29 @@ namespace {
 using namespace md::interactions;
 
 template <typename CellType>
-NNP<CellType>::NNP(
+NNP_onnx<CellType>::NNP_onnx(
     State& state, 
     CellType _cell, 
     md::utils::NeighbourList<CellType>* _nl, 
     float _cutoff, 
     int _num_max_edges, 
     const std::string model_path
-) : cell(_cell), cutoff(_cutoff), nl(_nl), num_max_edges(_num_max_edges) {
+) : cell(_cell), cutoff(_cutoff), nl(_nl), num_max_edges(_num_max_edges), env(ORT_LOGGING_LEVEL_WARNING, "ONNX_Inference_Class"), cuda_memory_info("Cuda", OrtDeviceAllocator, 0, OrtMemTypeDefault) {
     // モデルの読み込み
-    try {
-        model = torch::jit::load(model_path, torch::kCUDA);
-        std::cout << "モデルを読み込みました：" << model_path << std::endl;
-    }
-    catch(c10::Error& e) {
-        std::cerr << "モデルの読み込みに失敗しました。" << std::endl
-                  << e.what() << std::endl;
-        throw;
-    }
-    model.eval();
+    Ort::SessionOptions session_opt;
+    
+    OrtCUDAProviderOptions cuda_opt;
+    cuda_opt.device_id = 0;
+
+    cuda_opt.has_user_compute_stream = 1;
+    cuda_opt.user_compute_stream = state.stream;
+    cuda_opt.arena_extend_strategy = 1;
+
+    session_opt.AppendExecutionProvider_CUDA(cuda_opt);
+    session_opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+    session = std::make_unique<Ort::Session>(env, model_path.c_str(), session_opt);
+    io_binding = std::make_unique<Ort::IoBinding>(*session);
+    std::cout << "モデルを読み込みました：" << model_path << std::endl;
 
     auto N = state.n_atoms;
     auto view = state.get_view();
@@ -144,6 +148,8 @@ NNP<CellType>::NNP(
     cudaMalloc(&edge_index_ptr, 2 * num_max_edges * sizeof(int64_t));
     cudaMalloc(&counts, N * sizeof(int));
     cudaMalloc(&offsets, N * sizeof(int));
+    cudaMalloc(&forces_buffer, 3 * N * sizeof(float));
+    cudaMalloc(&total_energy_buffer, sizeof(float));
 
     // 原子番号はシミュレーションを通して変わらないため、最初に初期化する
     // int32_t -> int64_t
@@ -156,16 +162,18 @@ NNP<CellType>::NNP(
 }
 
 template <typename CellType>
-NNP<CellType>::~NNP() {
+NNP_onnx<CellType>::~NNP_onnx() {
     cudaFree(x_ptr);
     cudaFree(edge_weight_ptr);
     cudaFree(edge_index_ptr);
     cudaFree(counts);
     cudaFree(offsets);
+    cudaFree(forces_buffer);
+    cudaFree(total_energy_buffer);
 }
 
 template <typename CellType>
-void NNP<CellType>::create_graph(State& state) {
+void NNP_onnx<CellType>::create_graph(State& state) {
     int N = state.n_atoms;
     auto view = state.get_view();
 
@@ -217,69 +225,100 @@ void NNP<CellType>::create_graph(State& state) {
 }
 
 template <typename CellType>
-void NNP<CellType>::calc_force(State& state) {
+void NNP_onnx<CellType>::calc_force(State& state) {
     int N = state.n_atoms;
+    auto view = state.get_view();
     nl->check(state, cell);
     create_graph(state);
 
-    auto view = state.get_view();
+    // ラッパーテンソルの作成
+    std::vector<int64_t> x_shape = {N};
+    std::vector<int64_t> edge_index_shape = {2, num_edges};
+    std::vector<int64_t> edge_weight_shape = {3, num_edges};
+    x = Ort::Value::CreateTensor<int64_t>(
+        cuda_memory_info, x_ptr, N, x_shape.data(), x_shape.size()
+    );
+    edge_index = Ort::Value::CreateTensor<int64_t>(
+        cuda_memory_info, edge_index_ptr, 2 * num_edges, edge_index_shape.data(), edge_index_shape.size()
+    );
+    edge_weight = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, edge_weight_ptr, 3 * num_edges, edge_weight_shape.data(), edge_weight_shape.size()
+    );
 
-    auto opt = torch::TensorOptions().device(torch::kCUDA);
+    std::vector<int64_t> total_energy_shape = {};
+    std::vector<int64_t> forces_shape = {3, N};
+    total_energy = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, total_energy_buffer, 1, total_energy_shape.data(), total_energy_shape.size()
+    );
+    forces = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, forces_buffer, 3 * N, forces_shape.data(), forces_shape.size()
+    );
 
-    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
-    edge_index = torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt64));
-    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
+    // バインディング
+    io_binding->ClearBoundInputs();
+    io_binding->ClearBoundOutputs();
 
-    // ストリームを指定
-    c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
-    c10::cuda::CUDAStreamGuard guard(torch_stream);
+    io_binding->BindInput("x", x);
+    io_binding->BindInput("edge_index", edge_index);
+    io_binding->BindInput("edge_weight", edge_weight);
 
-    auto result_iv = model.forward({x, edge_index, edge_weight});
+    io_binding->BindOutput("total_energy", total_energy);
+    io_binding->BindOutput("forces", forces);
 
-    auto result_tuple = result_iv.toTuple();
-    auto elements = result_tuple->elements();
+    // 推論
+    session->Run(Ort::RunOptions{nullptr}, *io_binding);
 
-    auto energy = elements[0].toTensor().to(torch::kFloat32).detach();
-    auto forces = elements[1].toTensor().to(torch::kFloat32).detach();
-
-    // libtorch側のポインター
-    float* forces_ptr = forces.data_ptr<float>();
-
-    // 値のコピー
-    cudaMemcpyAsync(view.force.x, forces_ptr, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
-    cudaMemcpyAsync(view.force.y, forces_ptr + N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
-    cudaMemcpyAsync(view.force.z, forces_ptr + 2 * N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
+    // コピー
+    cudaMemcpyAsync(view.force.x, forces_buffer, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
+    cudaMemcpyAsync(view.force.y, forces_buffer + N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
+    cudaMemcpyAsync(view.force.z, forces_buffer + N + N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
 }
 
 template <typename CellType>
-void NNP<CellType>::calc_potential(State& state) {
+void NNP_onnx<CellType>::calc_potential(State& state) {
+    int N = state.n_atoms;
+    auto view = state.get_view();
     nl->check(state, cell);
     create_graph(state);
 
-    int N = state.n_atoms;
+    // ラッパーテンソルの作成
+    std::vector<int64_t> x_shape = {N};
+    std::vector<int64_t> edge_index_shape = {2, num_edges};
+    std::vector<int64_t> edge_weight_shape = {3, num_edges};
+    x = Ort::Value::CreateTensor<int64_t>(
+        cuda_memory_info, x_ptr, N, x_shape.data(), x_shape.size()
+    );
+    edge_index = Ort::Value::CreateTensor<int64_t>(
+        cuda_memory_info, edge_index_ptr, 2 * num_edges, edge_index_shape.data(), edge_index_shape.size()
+    );
+    edge_weight = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, edge_weight_ptr, 3 * num_edges, edge_weight_shape.data(), edge_weight_shape.size()
+    );
 
-    auto view = state.get_view();
+    std::vector<int64_t> total_energy_shape = {};
+    std::vector<int64_t> forces_shape = {3, N};
+    total_energy = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, total_energy_buffer, 1, total_energy_shape.data(), total_energy_shape.size()
+    );
+    forces = Ort::Value::CreateTensor<float>(
+        cuda_memory_info, forces_buffer, 3 * N, forces_shape.data(), forces_shape.size()
+    );
 
-    auto opt = torch::TensorOptions().device(torch::kCUDA);
+    io_binding->ClearBoundInputs();
+    io_binding->ClearBoundOutputs();
 
-    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
-    edge_index = torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt64));
-    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
+    io_binding->BindInput("x", x);
+    io_binding->BindInput("edge_index", edge_index);
+    io_binding->BindInput("edge_weight", edge_weight);
 
-    c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
-    c10::cuda::CUDAStreamGuard guard(torch_stream);
+    io_binding->BindOutput("total_energy", total_energy);
+    io_binding->BindOutput("forces", forces);
 
-    auto result_iv = model.forward({x, edge_index, edge_weight});
+    // 推論
+    session->Run(Ort::RunOptions{nullptr}, *io_binding);
 
-    auto result_tuple = result_iv.toTuple();
-    auto elements = result_tuple->elements();
-
-    auto energy = elements[0].toTensor().to(torch::kFloat32).detach();
-    auto forces = elements[1].toTensor().to(torch::kFloat32).detach();
-
-    float* energy_ptr = energy.data_ptr<float>();
-
-    cudaMemcpy(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost);
+    // コピー
+    cudaMemcpyAsync(&state.potential_energy, total_energy_buffer, sizeof(float), cudaMemcpyDeviceToHost, state.stream);
 }
 
-template class NNP<md::cells::CubicCell>;
+template class NNP_onnx<md::cells::CubicCell>;
