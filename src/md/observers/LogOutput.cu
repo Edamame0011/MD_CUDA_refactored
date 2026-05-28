@@ -5,11 +5,11 @@
 
 using namespace md::observers;
 
-LogOutput::LogOutput(float _interval, int _counter) : log_interval(_interval), counter(_counter) {
+LogOutput::LogOutput(float _interval, int _counter, Interaction* _interaction) : log_interval(_interval), counter(_counter), interaction(_interaction) {
         this->checker = 1e-3 * std::pow(log_interval, counter);
     }
 
-void LogOutput::output(State& state, Interaction* interaction) {
+void LogOutput::output(State& state) {
     if (state.dt * state.current_steps > checker) {
         print_energies(state, interaction);
 
@@ -18,7 +18,7 @@ void LogOutput::output(State& state, Interaction* interaction) {
     }
 }
 
-void LogOutput::init(State& state, Interaction* interaction) {
+void LogOutput::init(State& state) {
     std::cout << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
     print_energies(state, interaction);
 }

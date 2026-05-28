@@ -1,17 +1,19 @@
-#ifndef LINEAR_OUTPUT_CUH
-#define LINEAR_OUTPUT_CUH
+#ifndef __LINEAR_OUTPUT_CUH__
+#define __LINEAR_OUTPUT_CUH__
 
 #include <md/core/State.cuh>
 #include <md/observers/Observer.cuh>
+#include <md/interactions/Interaction.cuh>
 
 namespace md::observers{
     class LinearOutput : public Observer {
         public:
-            LinearOutput(int interval) : output_interval(interval) {}
-            void output(State& state, Interaction* interaction) override;
-            void init(State& state, Interaction* interaction) override;
+            LinearOutput(int interval, Interaction* _interaction) : output_interval(interval), interaction(_interaction) {}
+            void output(State& state) override;
+            void init(State& state) override;
         private:
             int output_interval;
+            Interaction* interaction;
     };
 }
 

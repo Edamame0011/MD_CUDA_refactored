@@ -23,7 +23,7 @@
                 "type": "NNP_aoti", 
                 "cutoff": 5.0, 
                 "max_edges": 70000, 
-                "model_path": "/home/nozawa/SchNet/model_schnet_trt.pt2"
+                "model_path": "/home/nozawa/SchNet/model_schnet_aoti.pt2"
             }
         }
     }, 
@@ -61,7 +61,9 @@
                 "use_graph": false
             }, 
             "output": {
-                "type": "log", 
+                "type": "log_export_trajectory", 
+                "output_path": "./outputs/trajectory/test_output.xyz", 
+                "is_unwrap": true, 
                 "divisions": 9
             }, 
             "step": "reset"

@@ -5,13 +5,13 @@
 
 using namespace md::observers;
 
-void LinearOutput::output(State& state, Interaction* interaction) {
+void LinearOutput::output(State& state) {
     if (state.current_steps % this->output_interval == 0) {
         print_energies(state, interaction);
     }
 }
 
-void LinearOutput::init(State& state, Interaction* interaction) {
+void LinearOutput::init(State& state) {
     std::cout << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
     print_energies(state, interaction);
 }

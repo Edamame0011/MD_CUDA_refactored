@@ -9,9 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(Python3 COMPONENTS Development REQUIRED)
 
-add_definitions(-U_FORTIFY_SOURCE)
-add_definitions(-D_FORTIFY_SOURCE=0)
-
 # include ディレクトリをインクルードパスに追加
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
@@ -26,16 +23,14 @@ include_directories(${ONNXRUNTIME_ROOT}/include)
 link_directories(${ONNXRUNTIME_ROOT}/lib)
 
 # torch-trtのパス
-set(TORCH_TRT_PATH "/home/nozawa/miniconda3/envs/GNN/lib/python3.13/site-packages/torch_tensorrt")
-include_directories(${TORCH_TRT_PATH}/include)
-link_directories(${TORCH_TRT_PATH}/lib)
+# set(TORCH_TRT_PATH "/home/nozawa/miniconda3/envs/GNN/lib/python3.13/site-packages/torch_tensorrt")
+# include_directories(${TORCH_TRT_PATH}/include)
+# link_directories(${TORCH_TRT_PATH}/lib)
 
 # ソースファイルのリスト
 file(GLOB_RECURSE MD_SOURCES 
     "src/md/*.cpp" 
     "src/md/*.cu"
-    "/home/nozawa/SchNet/CUDA/*.cu"
-    "/home/nozawa/SchNet/CUDA/*.cpp"
 )
 
 # 実行ファイルを作成
@@ -59,7 +54,7 @@ target_link_libraries(MD_MLP
     ${Python3_LIBRARIES} 
     ${TORCH_LIBRARIES} 
     ${CUDNN_LIBRARY}
-    torchtrt
+#    torchtrt
 )
 
 target_compile_options(MD_MLP PRIVATE 
@@ -69,9 +64,9 @@ target_compile_options(MD_MLP PRIVATE
     >
 )
 
-set_target_properties(MD_MLP PROPERTIES CUDA_ARCHITECTURES 89 CUDA_SEPARABLE_COMPILATION ON)
+set_target_properties(MD_MLP PROPERTIES CUDA_ARCHITECTURES 86 CUDA_SEPARABLE_COMPILATION ON)
 
 set_property(TARGET MD_MLP PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-# cmake -G Ninja -B build -D CMAKE_CUDA_COMPILER=/usr/local/cuda-13/bin/nvcc -D TensorRT_ROOT=/home/nozawa/miniconda3/envs/GNN/lib/python3.13/site-packages/tensorrt_libs .
+# cmake -G Ninja -B build -D CMAKE_CUDA_COMPILER=/usr/local/cuda-13/bin/nvcc .
 # ninja -C build

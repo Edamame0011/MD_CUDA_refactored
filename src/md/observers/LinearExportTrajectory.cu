@@ -2,16 +2,36 @@
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
 #include <iomanip>
+#include <md/cells/CubicCell.cuh>
 
 using namespace md::observers;
 
-void LinearExportTrajectory::output(State& state, Interaction* interaction) {
+template <typename CellType>
+LinearExportTrajectory<CellType>::LinearExportTrajectory(int interval, bool _is_unwrap, State& state, const CellType& _cell, const std::string& output_path)
+ : output_interval(interval), is_unwrap(_is_unwrap), cell(_cell), exporter(state, output_path) {}
+
+template <typename CellType>
+void LinearExportTrajectory<CellType>::output(State& state) {
     if (state.current_steps % this->output_interval == 0) {
-        print_energies(state, interaction);
+        float time = state.dt * state.current_steps;
+        std::cout << time << ", ";
+        if (is_unwrap) {
+            exporter.export_trajectory_unwrap<CellType>(state, cell);
+        } else {
+            exporter.export_trajectory(state);
+        }
     }
 }
 
-void LinearExportTrajectory::init(State& state, Interaction* interaction) {
-    std::cout << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
-    print_energies(state, interaction);
+template <typename CellType>
+void LinearExportTrajectory<CellType>::init(State& state) {
+    float time = state.dt * state.current_steps;
+    std::cout << time << ", ";
+    if (is_unwrap) {
+        exporter.export_trajectory_unwrap<CellType>(state, cell);
+    } else {
+        exporter.export_trajectory(state);
+    }
 }
+
+template class LinearExportTrajectory<md::cells::CubicCell>;

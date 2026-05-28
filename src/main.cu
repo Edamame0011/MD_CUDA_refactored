@@ -27,7 +27,7 @@ void simulate(CellType& cell, md::State* state, md::Interaction& interaction, st
     auto ensemble = md::utils::initialize::build_ensemble(s_setting.at("ensemble"), *state, mt);
 
     // オブザーバーの初期化
-    auto observer = md::utils::initialize::build_observer(o_setting);
+    auto observer = md::utils::initialize::build_observer<CellType>(o_setting, *state, cell, &interaction);
 
     // simulatorの初期化
     md::Simulator simulator(*state, &interaction, ensemble.integrator.get(), observer.get(), cell);
@@ -55,7 +55,7 @@ void energy_minimize(CellType& cell, md::State* state, md::Interaction& interact
     }
 
     // オブザーバーの初期化
-    auto observer = md::utils::initialize::build_observer(o_setting);
+    auto observer = md::utils::initialize::build_observer<CellType>(o_setting, *state, cell, &interaction);
 
     // チェッカーの初期化
     std::unique_ptr<md::ConvChecker> checker = nullptr;

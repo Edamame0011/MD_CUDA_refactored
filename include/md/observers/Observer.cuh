@@ -1,5 +1,5 @@
-#ifndef OBSERVER_CUH
-#define OBSERVER_CUH
+#ifndef __OBSERVER_CUH__
+#define __OBSERVER_CUH__
 
 #include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
@@ -9,15 +9,15 @@ namespace md{
         public:
             virtual ~Observer () = default;
 
-            virtual void output(State& state, Interaction* interaction) = 0;
-            virtual void init(State& state, Interaction* interaction) = 0;
+            virtual void output(State& state) = 0;
+            virtual void init(State& state) = 0;
         protected:
             Observer() = default;
     };
 }
 
-#endif
-
 namespace md::observers {
     void print_energies(State& state, Interaction* interaction);
 }
+
+#endif

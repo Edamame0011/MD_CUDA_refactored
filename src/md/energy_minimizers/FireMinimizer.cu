@@ -243,7 +243,7 @@ void FireMinimizer<CellType>::run() {
         state.dt = dt;
         state.current_steps = i;
 
-        observer->output(state, interaction);
+        observer->output(state);
 
         if (checker->check(state)) {
             md::observers::print_energies(state, interaction);

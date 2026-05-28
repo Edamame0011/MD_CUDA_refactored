@@ -1,5 +1,5 @@
-#ifndef __LINEAR_EXPORT_TRAJECTORY_CUH__
-#define __LINEAR_EXPORT_TRAJECTORY_CUH__
+#ifndef __LOG_EXPORT_TRAJECTORY_CUH__
+#define __LOG_EXPORT_TRAJECTORY_CUH__
 
 #include <md/core/State.cuh>
 #include <md/observers/Observer.cuh>
@@ -7,13 +7,15 @@
 
 namespace md::observers{
     template <typename CellType>
-    class LinearExportTrajectory : public Observer {
+    class LogExportTrajectory : public Observer {
         public:
-            LinearExportTrajectory(int interval, bool _is_unwrap, State& state, const CellType& _cell, const std::string& output_path);
+            LogExportTrajectory(float _interval, int _counter, bool _is_unwrap, State& state, const CellType& _cell, const std::string& output_path);
             void output(State& state) override;
             void init(State& state) override;
         private:
-            int output_interval;
+            float log_interval;
+            int counter;
+            float checker;
             bool is_unwrap;
             const CellType& cell;
             TrajectoryExporter exporter;

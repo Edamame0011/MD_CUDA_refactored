@@ -2,7 +2,7 @@
 #include <md/cells/CubicCell.cuh>
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
-#include <torch_tensorrt/torch_tensorrt.h>
+// #include <torch_tensorrt/torch_tensorrt.h>
 
 namespace {
     template <typename CellType>

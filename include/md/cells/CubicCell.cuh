@@ -22,6 +22,16 @@ namespace md::cells {
         void init (std::array<std::array<float, 3>, 3> lattice) {
             this->Lbox = lattice[0][0];
         }
+
+        std::array<std::array<float, 3>, 3> get_lattice() const {
+            std::array<std::array<float, 3>, 3> lattice = {{
+                {Lbox, 0, 0}, 
+                {0, Lbox, 0}, 
+                {0, 0, Lbox}
+            }};
+
+            return lattice;
+        }
     };
 }
 

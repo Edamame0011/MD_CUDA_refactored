@@ -30,6 +30,8 @@
 #include <md/interactions/NNP_onnx.cuh>
 #include <md/interactions/NNP_CSR.cuh>
 #include <md/interactions/NNP_aoti.cuh>
+#include <md/observers/LinearExportTrajectory.cuh>
+#include <md/observers/LogExportTrajectory.cuh>
 
 using json = nlohmann::json;
 
@@ -72,16 +74,33 @@ namespace md::utils::initialize {
         return state;
     }
 
-    std::unique_ptr<md::Observer> build_observer(const json& o_setting) {
+    template <typename CellType>
+    std::unique_ptr<md::Observer> build_observer(const json& o_setting, State& state, const CellType& cell, Interaction* interaction) {
         std::string o_type = o_setting.value("type", "linear");
         if (o_type == "linear") {
-            return std::make_unique<md::observers::LinearOutput>(o_setting.at("interval"));
+            return std::make_unique<md::observers::LinearOutput>(o_setting.at("interval").get<int>(), interaction);
         } else if (o_type == "log") {
             int divisions = o_setting.at("divisions");
             float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
-            return std::make_unique<md::observers::LogOutput>(log_interval, 5);
+            return std::make_unique<md::observers::LogOutput>(log_interval, 5, interaction);
+        } else if (o_type == "linear_export_trajectory") {
+            return std::make_unique<md::observers::LinearExportTrajectory<CellType>>(
+                o_setting.at("interval").get<int>(), 
+                o_setting.at("is_unwrap").get<bool>(), 
+                state, 
+                cell, 
+                o_setting.at("output_path").get<std::string>()
+            );
+        } else if (o_type == "log_export_trajectory") {
+            int divisions = o_setting.at("divisions");
+            float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+            return std::make_unique<md::observers::LogExportTrajectory<CellType>>(
+                log_interval, 5, o_setting.at("is_unwrap").get<bool>(), 
+                state, cell, o_setting.at("output_path").get<std::string>()
+            );
+        } else {
+            throw std::runtime_error("未対応のoutput typeです: " + o_type);
         }
-        throw std::runtime_error("未対応のoutput typeです: " + o_type);
     }
     struct EnsembleComponents {
         std::unique_ptr<md::TemperatureScheduler> scheduler;

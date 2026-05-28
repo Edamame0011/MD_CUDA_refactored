@@ -45,7 +45,7 @@ namespace md {
 
                     if (state.current_steps == 0) {
                         interaction->calc_force(state);
-                        observer->init(state, this->interaction);
+                        observer->init(state);
                     }
 
                     int total_steps = static_cast<int>(tsim / state.dt);
@@ -55,7 +55,7 @@ namespace md {
                     while (state.current_steps < total_steps) {  
                         cudaGraphLaunch(instance, state.stream);
                         state.current_steps += num_loop_per_graph;
-                        observer->output(state, this->interaction);
+                        observer->output(state);
                     }
 
                     cudaGraphExecDestroy(instance);
@@ -72,7 +72,7 @@ namespace md {
 
                     if (state.current_steps == 0) {
                         interaction->calc_force(state);
-                        observer->init(state, this->interaction);
+                        observer->init(state);
                     }
 
                     int total_steps = static_cast<int>(tsim / state.dt);
@@ -84,7 +84,7 @@ namespace md {
                         interaction->calc_force(state);
                         integrator->integrateStepTwo(state);
                         state.current_steps ++;
-                        observer->output(state, this->interaction);
+                        observer->output(state);
                     }
 
                     cudaGraphExecDestroy(instance);
