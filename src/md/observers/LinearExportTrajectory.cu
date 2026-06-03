@@ -14,7 +14,7 @@ template <typename CellType>
 void LinearExportTrajectory<CellType>::output(State& state) {
     if (state.current_steps % this->output_interval == 0) {
         float time = state.dt * state.current_steps;
-        std::cout << time << ", ";
+        std::cout << time << ", " << std::flush;
         if (is_unwrap) {
             exporter.export_trajectory_unwrap(state);
         } else {
@@ -26,7 +26,7 @@ void LinearExportTrajectory<CellType>::output(State& state) {
 template <typename CellType>
 void LinearExportTrajectory<CellType>::init(State& state) {
     float time = state.dt * state.current_steps;
-    std::cout << time << ", ";
+    std::cout << time << ", " << std::flush;
     if (is_unwrap) {
         exporter.export_trajectory_unwrap(state);
     } else {
