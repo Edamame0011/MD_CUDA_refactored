@@ -27,11 +27,11 @@
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.cuh>
 #include <md/temperature_schedulers/LinearScheduler.cuh>
-#include <md/interactions/NNP_onnx.cuh>
 #include <md/interactions/NNP_CSR.cuh>
 #include <md/interactions/NNP_aoti.cuh>
 #include <md/observers/LinearExportTrajectory.cuh>
 #include <md/observers/LogExportTrajectory.cuh>
+#include <md/observers/TargetTemperatureExporter.cuh>
 
 using json = nlohmann::json;
 
@@ -97,6 +97,16 @@ namespace md::utils::initialize {
             return std::make_unique<md::observers::LogExportTrajectory<CellType>>(
                 log_interval, 5, o_setting.at("is_unwrap").get<bool>(), 
                 state, cell, o_setting.at("output_path").get<std::string>()
+            );
+        } else if (o_type == "target_temperature_export") {
+            std::vector<float> target_temperatures = o_setting.at("target_temperatures").get<std::vector<float>>();
+            return std::make_unique<md::observers::TargetTemperatureExporter<CellType>>(
+                target_temperatures, 
+                o_setting.at("initial_temperature").get<float>(), 
+                o_setting.at("cooling_rate_per_step").get<float>(), 
+                o_setting.at("output_path").get<std::string>(), 
+                cell, 
+                o_setting.at("is_unwrap").get<bool>()
             );
         } else {
             throw std::runtime_error("未対応のoutput typeです: " + o_type);
@@ -172,8 +182,8 @@ namespace md::utils::initialize {
             return pot;
         } else if (p_type == "NNP") {
             return std::make_unique<md::interactions::NNP<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
-        } else if (p_type == "NNP_onnx") {
-            return std::make_unique<md::interactions::NNP_onnx<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
+//        } else if (p_type == "NNP_onnx") {
+//            return std::make_unique<md::interactions::NNP_onnx<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
         } else if (p_type == "NNP_csr") {
             return std::make_unique<md::interactions::NNP_CSR<CellType>>(state, cell, nl, p_setting.at("cutoff").get<float>(), p_setting.at("max_edges").get<int>(), p_setting.at("model_path").get<std::string>());
         } else if (p_type == "NNP_aoti") {

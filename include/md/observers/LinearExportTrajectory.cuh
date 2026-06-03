@@ -15,8 +15,7 @@ namespace md::observers{
         private:
             int output_interval;
             bool is_unwrap;
-            const CellType& cell;
-            TrajectoryExporter exporter;
+            TrajectoryExporter<CellType> exporter;
     };
 }
 

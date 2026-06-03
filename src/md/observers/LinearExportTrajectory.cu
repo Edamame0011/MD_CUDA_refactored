@@ -8,7 +8,7 @@ using namespace md::observers;
 
 template <typename CellType>
 LinearExportTrajectory<CellType>::LinearExportTrajectory(int interval, bool _is_unwrap, State& state, const CellType& _cell, const std::string& output_path)
- : output_interval(interval), is_unwrap(_is_unwrap), cell(_cell), exporter(state, output_path) {}
+ : output_interval(interval), is_unwrap(_is_unwrap), exporter(state, output_path, _cell) {}
 
 template <typename CellType>
 void LinearExportTrajectory<CellType>::output(State& state) {
@@ -16,7 +16,7 @@ void LinearExportTrajectory<CellType>::output(State& state) {
         float time = state.dt * state.current_steps;
         std::cout << time << ", ";
         if (is_unwrap) {
-            exporter.export_trajectory_unwrap<CellType>(state, cell);
+            exporter.export_trajectory_unwrap(state);
         } else {
             exporter.export_trajectory(state);
         }
@@ -28,7 +28,7 @@ void LinearExportTrajectory<CellType>::init(State& state) {
     float time = state.dt * state.current_steps;
     std::cout << time << ", ";
     if (is_unwrap) {
-        exporter.export_trajectory_unwrap<CellType>(state, cell);
+        exporter.export_trajectory_unwrap(state);
     } else {
         exporter.export_trajectory(state);
     }

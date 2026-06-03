@@ -17,8 +17,7 @@ namespace md::observers{
             int counter;
             float checker;
             bool is_unwrap;
-            const CellType& cell;
-            TrajectoryExporter exporter;
+            TrajectoryExporter<CellType> exporter;
     };
 }
 
