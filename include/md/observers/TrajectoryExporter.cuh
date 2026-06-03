@@ -8,12 +8,12 @@
 #include <iostream>
 #include <map>
 #include <iomanip>
+#include <md/cells/Cell.cuh>
 
 namespace md::observers {
-    template <typename CellType>
     class TrajectoryExporter {
         public: 
-            TrajectoryExporter(State& state, const std::string& output_path, const CellType& cell);
+            TrajectoryExporter(State& state, const std::string& output_path, Cell* cell);
             void export_trajectory(State& state);
 
             void export_trajectory_unwrap(State& state);
@@ -25,7 +25,7 @@ namespace md::observers {
             std::vector<int> h_box;
             std::vector<std::string> species;
             std::vector<std::string> atom_number_map;
-            CellType cell;
+            Cell* cell;
     };
 }
 

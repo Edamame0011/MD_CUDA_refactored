@@ -5,13 +5,13 @@
 // #include <torch_tensorrt/torch_tensorrt.h>
 
 namespace {
-    template <typename CellType>
     __global__ void count_pairs_kernel(
         dfloat3 pos, 
         int* __restrict__ counts, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        CellType cell, 
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice, 
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours
@@ -37,7 +37,7 @@ namespace {
             float dy = pyi - pyj;
             float dz = pzi - pzj;
         
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             
@@ -48,7 +48,6 @@ namespace {
         counts[idx] = valid_pairs;
     }
 
-    template <typename CellType>
     __global__ void build_graph_kernel(
         dfloat3 pos, 
         int64_t* __restrict__ edge_index_ptr, 
@@ -56,7 +55,8 @@ namespace {
         const int* __restrict__ offsets,
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        CellType cell, 
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice, 
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours, 
@@ -84,7 +84,7 @@ namespace {
             float dy = pyj - pyi;
             float dz = pzj - pzi;
         
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             
@@ -114,17 +114,15 @@ namespace {
 
 using namespace md::interactions;
 
-template <typename CellType>
-NNP_aoti<CellType>::NNP_aoti(
+NNP_aoti::NNP_aoti(
     State& state, 
-    CellType _cell, 
-    md::utils::NeighbourList<CellType>* _nl, 
+    Cell* _cell, 
+    NeighbourList* _nl, 
     float _cutoff, 
     int _num_max_edges, 
     const std::string model_path
 ) : cell(_cell), cutoff(_cutoff), nl(_nl), num_max_edges(_num_max_edges), loader(model_path) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     // メモリの確保
     cudaMalloc(&x_ptr, N * sizeof(int64_t));
@@ -137,14 +135,13 @@ NNP_aoti<CellType>::NNP_aoti(
     // int32_t -> int64_t
     thrust::copy(
         thrust::device, 
-        view.atomic_numbers, 
-        view.atomic_numbers + N, 
+        state.atomic_numbers, 
+        state.atomic_numbers + N, 
         x_ptr
     );
 }
 
-template <typename CellType>
-NNP_aoti<CellType>::~NNP_aoti() {
+NNP_aoti::~NNP_aoti() {
     cudaFree(x_ptr);
     cudaFree(edge_weight_ptr);
     cudaFree(edge_index_ptr);
@@ -152,20 +149,19 @@ NNP_aoti<CellType>::~NNP_aoti() {
     cudaFree(offsets);
 }
 
-template <typename CellType>
-void NNP_aoti<CellType>::create_graph(State& state) {
+void NNP_aoti::create_graph(State& state) {
     int N = state.n_atoms;
-    auto view = state.get_view();
 
     int num_threads = 256;
     int num_blocks = (N + num_threads - 1) / num_threads;
 
     count_pairs_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
-        view.pos, 
+        state.pos, 
         counts, 
         nl->get_list(), 
         nl->get_count(), 
-        cell, 
+        cell->apply_pbc_ptr, 
+        cell->d_lattice, 
         cutoff, 
         N, 
         nl->get_max_neighbours()
@@ -189,13 +185,14 @@ void NNP_aoti<CellType>::create_graph(State& state) {
     num_edges = 2 * num_pairs;
 
     build_graph_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
-        view.pos, 
+        state.pos, 
         edge_index_ptr, 
         edge_weight_ptr, 
         offsets, 
         nl->get_list(), 
         nl->get_count(), 
-        cell, 
+        cell->apply_pbc_ptr, 
+        cell->d_lattice, 
         cutoff, 
         N, 
         nl->get_max_neighbours(), 
@@ -204,12 +201,11 @@ void NNP_aoti<CellType>::create_graph(State& state) {
     );
 }
 
-template <typename CellType>
-void NNP_aoti<CellType>::calc_force(State& state) {
+void NNP_aoti::calc_force(State& state) {
     int N = state.n_atoms;
+
     nl->check(state, cell);
     create_graph(state);
-    auto view = state.get_view();
 
     auto opt = torch::TensorOptions().device(torch::kCUDA);
     inputs = {
@@ -228,16 +224,14 @@ void NNP_aoti<CellType>::calc_force(State& state) {
 
     float* force_ptr = outputs[1].data_ptr<float>();
 
-    cudaMemcpyAsync(view.force.x, force_ptr, 3 * N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
+    cudaMemcpyAsync(state.force.x, force_ptr, 3 * N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
 }
 
-template <typename CellType>
-void NNP_aoti<CellType>::calc_potential(State& state) {
+void NNP_aoti::calc_potential(State& state) {
     nl->check(state, cell);
     create_graph(state);
 
     int N = state.n_atoms;
-    auto view = state.get_view();
 
     auto opt = torch::TensorOptions().device(torch::kCUDA);
     inputs = {
@@ -259,5 +253,3 @@ void NNP_aoti<CellType>::calc_potential(State& state) {
 
     cudaMemcpy(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost);
 }
-
-template class NNP_aoti<md::cells::CubicCell>;

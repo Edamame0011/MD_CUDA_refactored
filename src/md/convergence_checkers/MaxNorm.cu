@@ -17,12 +17,11 @@ using namespace md::convergence_checkers;
 
 bool MaxNorm::check(State& state) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
     float max2 = thrust::transform_reduce(
         thrust::device, 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
-        CalcSquaredNorm(view.force), 
+        CalcSquaredNorm(state.force), 
         0.0f, 
         thrust::maximum<float>()
     );

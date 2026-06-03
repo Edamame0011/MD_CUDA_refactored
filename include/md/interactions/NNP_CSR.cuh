@@ -7,12 +7,12 @@
 #include <torch/script.h>
 #include <torch/torch.h>
 #include <string>
+#include <md/cells/Cell.cuh>
 
 namespace md::interactions {
-    template <typename CellType>
     class NNP_CSR : public Interaction {
         public: 
-            NNP_CSR(State& state, CellType _cell, md::utils::NeighbourList<CellType>* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
+            NNP_CSR(State& state, Cell* _cell, NeighbourList* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
             ~NNP_CSR();
 
             void calc_force(State& state) override;
@@ -25,8 +25,8 @@ namespace md::interactions {
             int num_edges;
 
             torch::jit::script::Module model;
-            md::utils::NeighbourList<CellType>* nl;
-            CellType cell;
+            NeighbourList* nl;
+            Cell* cell;
 
             float cutoff;
 

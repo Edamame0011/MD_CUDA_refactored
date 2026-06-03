@@ -34,7 +34,8 @@ namespace {
         lj_params params, 
         const unsigned int* __restrict__ list, 
         const unsigned int* __restrict__ count, 
-        CubicCell cell
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice
     ) {
         int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
         int warp_id = global_tid / 32;
@@ -68,7 +69,7 @@ namespace {
             float dy = pyi - pyj;
             float dz = pzi - pzj;
         
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             const float rc = params.cutoff[si * num_species + sj];   
@@ -109,7 +110,8 @@ namespace {
         int max_neighbours;
         const unsigned int* __restrict__ list;
         const unsigned int* __restrict__ count;
-        CubicCell cell;
+        void (*apply_pbc_ptr) (float*, float*, float*, float*); 
+        float* lattice; 
 
         CalcPotential(
             dfloat3 _pos, 
@@ -118,7 +120,8 @@ namespace {
             int _max_neighbours,
             const unsigned int* _list,
             const unsigned int* _count,
-            CubicCell _cell
+            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
+            float* _lattice
         ) : 
         pos(_pos), 
         params(_params),
@@ -126,7 +129,8 @@ namespace {
         max_neighbours(_max_neighbours),
         list(_list),
         count(_count),
-        cell(_cell) {}
+        apply_pbc_ptr(_apply_pbc_ptr), 
+        lattice(_lattice) {}
 
         __device__ float operator() (const int i) const {
             float potential = 0.0f;
@@ -151,7 +155,7 @@ namespace {
                 auto dy = pyi - pyj;
                 auto dz = pzi - pzj;
 
-                cell.apply_pbc(dx, dy, dz);
+                apply_pbc_ptr(&dx, &dy, &dz, lattice);
 
                 const auto dist_sq = dx * dx + dy * dy + dz * dz;
                 const auto r_c = params.cutoff[si * num_species + sj];
@@ -205,13 +209,13 @@ using namespace md::interactions;
 LJPotential_CLL::LJPotential_CLL(
     int _num_atoms, 
     int _num_species, 
-    CubicCell _cell, 
-    md::utils::NeighbourList_CLL *_NL, 
+    CubicCell& _cell, 
+    NeighbourList_CLL* _nl, 
     std::vector<float> _sigma, 
     std::vector<float> _epsilon, 
     std::vector<float> _cutoff, 
     std::vector<int> _identifier
-) : num_species(_num_species), cell(_cell), NL(_NL) {
+) : num_species(_num_species), cell(_cell), nl(_nl) {
     // メモリの確保
     size_t size = num_species * num_species;
     size_t N = _num_atoms;
@@ -264,16 +268,15 @@ LJPotential_CLL::~LJPotential_CLL() {
 }
 
 void LJPotential_CLL::calc_force(State& state) {
-    NL->check(state, cell);
+    nl->check(state, cell);
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     int grid_size_forward_sort = (N + apply_forward_sort_num_threads - 1) / apply_forward_sort_num_threads;
     int grid_size_sort = (N + apply_sort_num_threads - 1) / apply_sort_num_threads;
     int warps_per_block = calc_force_num_threads / 32;
     int calc_force_grid_size = (N + warps_per_block - 1) / warps_per_block;
 
-    auto& cll = NL->get_cell_list();
+    auto& cll = nl->get_cell_list();
     auto pid = cll.get_particle_id();
     dfloat3 sorted_pos = cll.get_sorted_pos();
 
@@ -287,32 +290,32 @@ void LJPotential_CLL::calc_force(State& state) {
     calc_force_kernel<<<calc_force_grid_size, calc_force_num_threads, 0, state.stream>>>(
         num_species, 
         N, 
-        NL->get_max_neighbours(), 
+        nl->get_max_neighbours(), 
         cll.get_sorted_pos(), 
         force_buffer,  
         params, 
-        NL->get_list(), 
-        NL->get_count(), 
-        cell
+        nl->get_list(), 
+        nl->get_count(), 
+        cell.apply_pbc_ptr, 
+        cell.d_lattice
     );
 
     apply_sort_kernel<<<grid_size_sort, apply_sort_num_threads, 0, state.stream>>>(
         force_buffer, 
-        view.force, 
+        state.force, 
         pid, 
         N
     );
 }
 
 void LJPotential_CLL::calc_potential(State& state) {
-    NL->check(state, cell);
+    nl->check(state, cell);
 
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     constexpr int block_size = 256;
     int grid_size_sort = (N + block_size - 1) / block_size;
-    auto& cll = NL->get_cell_list();
+    auto& cll = nl->get_cell_list();
     auto pid = cll.get_particle_id();
 
     apply_forward_sort_kernel<<<grid_size_sort, block_size, 0, state.stream>>>(
@@ -331,10 +334,11 @@ void LJPotential_CLL::calc_potential(State& state) {
             cll.get_sorted_pos(), 
             params, 
             num_species, 
-            NL->get_max_neighbours(),
-            NL->get_list(),
-            NL->get_count(),
-            cell
+            nl->get_max_neighbours(),
+            nl->get_list(),
+            nl->get_count(),
+            cell.apply_pbc_ptr, 
+            cell.d_lattice
         ), 
         0.0f, 
         thrust::plus<float>()

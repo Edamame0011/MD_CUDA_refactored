@@ -27,15 +27,14 @@ namespace {
 using namespace md::thermostats;
 
 KinEnergyCalculator::KinEnergyCalculator(State& state) {
-    auto view = state.get_view();
     auto N = state.n_atoms;
 
-    CalcKinEnergy op(view.vel.x, view.vel.y, view.vel.z, view.mass, conversion_factor);
+    CalcKinEnergy op(state.vel.x, state.vel.y, state.vel.z, state.mass, conversion_factor);
     thrust::counting_iterator<int> count_itr(0);
 
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N);
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, state.kinetic_energy, N);
 
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 }
@@ -45,13 +44,12 @@ KinEnergyCalculator::~KinEnergyCalculator() {
 }
 
 void KinEnergyCalculator::calc_kinetic_energy(State& state) {
-    auto view = state.get_view();
     auto N = state.n_atoms;
 
-    CalcKinEnergy op(view.vel.x, view.vel.y, view.vel.z, view.mass, conversion_factor);
+    CalcKinEnergy op(state.vel.x, state.vel.y, state.vel.z, state.mass, conversion_factor);
     thrust::counting_iterator<int> count_itr(0);
 
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
 
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, view.kinetic_energy, N, state.stream);
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, state.kinetic_energy, N, state.stream);
 }

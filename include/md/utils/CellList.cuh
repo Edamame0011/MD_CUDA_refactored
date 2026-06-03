@@ -5,7 +5,7 @@
 
 #include <md/core/State.cuh>
 
-namespace md::utils {
+namespace md {
     class CellList {
         public:
             CellList(int _M, float _Lbox, State& state);

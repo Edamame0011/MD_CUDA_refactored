@@ -6,10 +6,9 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-using Top2 = md::utils::Top2;
+using Top2 = md::Top2;
 
 namespace {
-    template <typename CellType>
     __global__ void generate_nl(
         bool* flag, 
         dfloat3 pos, 
@@ -19,7 +18,8 @@ namespace {
         int* list, 
         int* count, 
         float cutoff_margin_sq, 
-        CellType cell
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice
     ) {
         if (!*flag) return;
 
@@ -50,7 +50,7 @@ namespace {
                     auto dy = pyi - pyj;
                     auto dz = pzi - pzj;
                     
-                    cell.apply_pbc(dx, dy, dz);
+                    apply_pbc_ptr(&dx, &dy, &dz, lattice);
 
                     const auto dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -89,18 +89,19 @@ namespace {
         }
     }
 
-    template <typename CellType>
     struct CalcDist {
         dfloat3 pos;
         dfloat3 nl_conf;
 
-        CellType cell;
+        void (*apply_pbc_ptr) (float*, float*, float*, float*);
+        float* lattice;
 
         CalcDist(
             dfloat3 _pos, 
             dfloat3 _nl_conf, 
-            CellType _cell
-        ) : pos(_pos), nl_conf(_nl_conf), cell(_cell) {}
+            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
+            float* _lattice
+        ) : pos(_pos), nl_conf(_nl_conf), apply_pbc_ptr(_apply_pbc_ptr), lattice(_lattice) {}
 
         __host__ __device__ Top2 operator () (const int idx) const {
             auto dx = pos.x[idx] - nl_conf.x[idx];
@@ -108,7 +109,7 @@ namespace {
             auto dz = pos.z[idx] - nl_conf.z[idx];
 
             // PBC補正
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
 
             float dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -126,10 +127,9 @@ namespace {
     };
 }
 
-using namespace md::utils;
+using namespace md;
 
-template <typename CellType>
-NeighbourList<CellType>::NeighbourList(State& state, float _cutoff, float _margin) : cutoff(_cutoff), margin(_margin) {
+NeighbourList::NeighbourList(State& state, float _cutoff, float _margin) : cutoff(_cutoff), margin(_margin) {
     auto N = state.n_atoms;
     this->max_neighbours = 1000;
     cudaMalloc(&this->list, (size_t)N * max_neighbours * sizeof(int));
@@ -142,11 +142,10 @@ NeighbourList<CellType>::NeighbourList(State& state, float _cutoff, float _margi
     cudaMemset(this->flag, 1, sizeof(bool));
 
     int minGridSize;
-    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &generate_nl_num_threads, generate_nl<CellType>, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &generate_nl_num_threads, generate_nl, 0, 0);
 }
 
-template <typename CellType>
-NeighbourList<CellType>::~NeighbourList() {
+NeighbourList::~NeighbourList() {
     cudaFree(this->list);
     cudaFree(this->count);
     cudaFree(this->nl_conf.x);
@@ -157,10 +156,8 @@ NeighbourList<CellType>::~NeighbourList() {
     cudaFree(this->d_temp_storage);
 }
 
-template <typename CellType>
-void NeighbourList<CellType>::generate(State& state, CellType cell) {
+void NeighbourList::generate(State& state, Cell* cell) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
@@ -168,25 +165,27 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
     int warps_per_block = generate_nl_num_threads / 32;
 
     int num_blocks = (N + warps_per_block - 1) / warps_per_block;
-    generate_nl<CellType><<<num_blocks, generate_nl_num_threads>>>(
+    generate_nl<<<num_blocks, generate_nl_num_threads>>>(
         this->flag, 
-        view.pos, 
+        state.pos, 
         this->nl_conf, 
         N, 
         this->max_neighbours, 
         this->list, 
         this->count, 
         cutoff_margin_sq, 
-        cell
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 
     cudaMemset(this->flag, 0, sizeof(bool));
 
     // バッファの確保
-    CalcDist<CellType> op(
-        view.pos, 
+    CalcDist op(
+        state.pos, 
         this->nl_conf, 
-        cell
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -204,18 +203,17 @@ void NeighbourList<CellType>::generate(State& state, CellType cell) {
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 }
 
-template <typename CellType>
-void NeighbourList<CellType>::check(State& state, CellType cell) {
-    auto view = state.get_view();
+void NeighbourList::check(State& state, Cell* cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
     // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
-    CalcDist<CellType> op(
-        view.pos, 
+    CalcDist op(
+        state.pos, 
         this->nl_conf, 
-        cell
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -242,19 +240,18 @@ void NeighbourList<CellType>::check(State& state, CellType cell) {
 
     int num_blocks = (N + warps_per_block - 1) / warps_per_block;
 
-    generate_nl<CellType><<<num_blocks, generate_nl_num_threads, 0, state.stream>>>(
+    generate_nl<<<num_blocks, generate_nl_num_threads, 0, state.stream>>>(
         this->flag, 
-        view.pos, 
+        state.pos, 
         this->nl_conf, 
         N, 
         this->max_neighbours, 
         this->list, 
         this->count, 
         cutoff_margin_sq, 
-        cell
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 
     cudaMemsetAsync(this->flag, 0, sizeof(bool), state.stream);
 }
-
-template class NeighbourList<md::cells::CubicCell>;

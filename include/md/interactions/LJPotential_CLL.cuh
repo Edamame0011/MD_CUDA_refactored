@@ -15,16 +15,14 @@
 #include <fstream>
 #include <string>
 
-using StateView = md::StateView;
-
 namespace md::interactions {
     class LJPotential_CLL : public Interaction {
         public: 
             LJPotential_CLL(
                 int _num_atoms, 
                 int _num_species, 
-                md::cells::CubicCell _cell, 
-                md::utils::NeighbourList_CLL *_NL, 
+                md::cells::CubicCell& _cell, 
+                NeighbourList_CLL *_nl, 
                 std::vector<float> _sigma, 
                 std::vector<float> _epsilon, 
                 std::vector<float> _cutoff, 
@@ -40,8 +38,8 @@ namespace md::interactions {
             int* original_identifier;
             lj_params params;
             
-            md::cells::CubicCell cell;
-            md::utils::NeighbourList_CLL *NL;
+            md::cells::CubicCell& cell;
+            NeighbourList_CLL *nl;
 
             dfloat3 force_buffer;
 
@@ -65,7 +63,7 @@ namespace md::utils::initialize {
         // GPUからデータ転送
         int N = state.n_atoms;
         std::vector<int> atomic_numbers(N);
-        cudaMemcpy(atomic_numbers.data(), state.get_view().atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(atomic_numbers.data(), state.atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
 
         // identifierの作成
         std::vector<int> identifier;

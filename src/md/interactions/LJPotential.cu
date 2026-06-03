@@ -23,7 +23,6 @@ namespace {
         return -24.0f / rij1 * sij6 * (2.0f * sij6 - rij6) / (rij6 * rij6);
     }
 
-    template <typename CellType>
     __global__ void calc_force_kernel(
         int num_species, 
         int num_atoms, 
@@ -33,7 +32,8 @@ namespace {
         lj_params params, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        CellType cell
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice
     ) {
         int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
         int warp_id = global_tid / 32;
@@ -67,7 +67,7 @@ namespace {
             float dy = pyi - pyj;
             float dz = pzi - pzj;
         
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             const float rc = params.cutoff[si * num_species + sj];   
@@ -101,7 +101,6 @@ namespace {
         }
     }
 
-    template <typename CellType>
     struct CalcPotential {
         const dfloat3 pos;
         const lj_params params;
@@ -109,7 +108,8 @@ namespace {
         int max_neighbours;
         const int* __restrict__ list;
         const int* __restrict__ count;
-        CellType cell;
+        void (*apply_pbc_ptr) (float*, float*, float*, float*);
+        float* lattice;
 
         CalcPotential(
             dfloat3 _pos, 
@@ -118,7 +118,8 @@ namespace {
             int _max_neighbours,
             const int* _list,
             const int* _count,
-            CellType _cell
+            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
+            float* _lattice
         ) : 
         pos(_pos), 
         params(_params),
@@ -126,7 +127,8 @@ namespace {
         max_neighbours(_max_neighbours),
         list(_list),
         count(_count),
-        cell(_cell) {}
+        apply_pbc_ptr(_apply_pbc_ptr), 
+        lattice(_lattice) {}
 
         __device__ float operator() (int i) {
             float potential = 0.0f;
@@ -151,7 +153,7 @@ namespace {
                 auto dy = pyi - pyj;
                 auto dz = pzi - pzj;
 
-                cell.apply_pbc(dx, dy, dz);
+                apply_pbc_ptr(&dx, &dy, &dz, lattice);
 
                 const auto dist_sq = dx * dx + dy * dy + dz * dz;
                 const auto r_c = params.cutoff[si * num_species + sj];
@@ -173,16 +175,15 @@ namespace {
 
 using namespace md::interactions;
 
-template <typename CellType>
-LJPotential<CellType>::LJPotential(
+LJPotential::LJPotential(
     int _num_species, 
-    CellType _cell, 
-    md::utils::NeighbourList<CellType> *_NL, 
+    Cell* _cell, 
+    NeighbourList *_nl, 
     std::vector<float> _sigma, 
     std::vector<float> _epsilon, 
     std::vector<float> _cutoff, 
     std::vector<int> _identifier
-) : num_species(_num_species), cell(_cell), NL(_NL) {
+) : num_species(_num_species), cell(_cell), nl(_nl) {
     // メモリの確保
     size_t size = num_species * num_species;
     size_t N = _identifier.size();
@@ -212,11 +213,10 @@ LJPotential<CellType>::LJPotential(
     cudaMemcpy(params.deriv_1st_LJpotential_cutoff, h_deriv_1st_LJpotential_cutoff.data(), size * sizeof(float), cudaMemcpyHostToDevice);
 
     int minGridSize;
-    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_force_num_threads, calc_force_kernel<CellType>, 0, 0);
+    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_force_num_threads, calc_force_kernel, 0, 0);
 }
 
-template <typename CellType>
-LJPotential<CellType>::~LJPotential() {
+LJPotential::~LJPotential() {
     cudaFree(params.sigma);
     cudaFree(params.epsilon);
     cudaFree(params.cutoff);
@@ -224,11 +224,9 @@ LJPotential<CellType>::~LJPotential() {
     cudaFree(params.deriv_1st_LJpotential_cutoff);
 }
 
-template <typename CellType>
-void LJPotential<CellType>::calc_force(State& state) {
-    NL->check(state, cell);
+void LJPotential::calc_force(State& state) {
+    nl->check(state, cell);
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     int warps_per_block = calc_force_num_threads / 32;
 
@@ -237,39 +235,36 @@ void LJPotential<CellType>::calc_force(State& state) {
     calc_force_kernel<<<grid_size, calc_force_num_threads, 0, state.stream>>>(
         num_species, 
         N, 
-        NL->get_max_neighbours(), 
-        view.pos, 
-        view.force, 
+        nl->get_max_neighbours(), 
+        state.pos, 
+        state.force, 
         params, 
-        NL->get_list(), 
-        NL->get_count(), 
-        cell
+        nl->get_list(), 
+        nl->get_count(), 
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 }
 
-template <typename CellType>
-void LJPotential<CellType>::calc_potential(State& state) {
+void LJPotential::calc_potential(State& state) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     // ポテンシャルの計算
     state.potential_energy = thrust::transform_reduce(
         thrust::cuda::par.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
-        CalcPotential<CellType>(
-            view.pos, 
+        CalcPotential(
+            state.pos, 
             params, 
             num_species, 
-            NL->get_max_neighbours(),
-            NL->get_list(),
-            NL->get_count(),
-            cell
+            nl->get_max_neighbours(),
+            nl->get_list(),
+            nl->get_count(),
+            cell->apply_pbc_ptr, 
+            cell->d_lattice
         ), 
         0.0f, 
         thrust::plus<float>()
     );
 }
-
-
-template class LJPotential<md::cells::CubicCell>;

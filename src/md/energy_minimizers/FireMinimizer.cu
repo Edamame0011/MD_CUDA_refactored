@@ -154,12 +154,11 @@ void FireMinimizer<CellType>::set_hyper_parameters(
 template <typename CellType>
 void FireMinimizer<CellType>::run() {
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     interaction->calc_force(state);
-    cudaMemset(view.vel.x, 0.0f, N * sizeof(float));
-    cudaMemset(view.vel.y, 0.0f, N * sizeof(float));
-    cudaMemset(view.vel.z, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.x, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.y, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.z, 0.0f, N * sizeof(float));
 
     int n_pos = 0;
     int n_neg = 0;
@@ -176,8 +175,8 @@ void FireMinimizer<CellType>::run() {
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             CalcDot(
-                view.vel, 
-                view.force
+                state.vel, 
+                state.force
             ), 
             0.0f, 
             thrust::plus()
@@ -202,8 +201,8 @@ void FireMinimizer<CellType>::run() {
                 thrust::make_counting_iterator(0),  
                 thrust::make_counting_iterator(N), 
                 Correct(
-                    view.pos, 
-                    view.vel, 
+                    state.pos, 
+                    state.vel, 
                     dt * 0.5f
                 )
             );
@@ -216,10 +215,10 @@ void FireMinimizer<CellType>::run() {
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             IntegrateStepOne(
-                view.pos, 
-                view.vel, 
-                view.force, 
-                view.mass_inv, 
+                state.pos, 
+                state.vel, 
+                state.force, 
+                state.mass_inv, 
                 dt, 
                 dt_half_conv, 
                 alpha
@@ -232,9 +231,9 @@ void FireMinimizer<CellType>::run() {
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(state.n_atoms), 
             IntegrateStepTwo(
-                view.vel, 
-                view.force, 
-                view.mass_inv, 
+                state.vel, 
+                state.force, 
+                state.mass_inv, 
                 dt_half_conv
             )
         );

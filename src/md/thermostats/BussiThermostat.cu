@@ -86,11 +86,9 @@ void BussiThermostat::stepTwo(State& state) {
     this->scheduler->get_temperature(state);    
     calculator->calc_kinetic_energy(state);
 
-    auto view = state.get_view();
-
     // スケーリング要素を計算
     calc_scaling_factor<<<1, 1, 0, state.stream>>>(
-        view.kinetic_energy, 
+        state.kinetic_energy, 
         this->scaling_factor, 
         this->curand_state, 
         this->dof, 
@@ -105,7 +103,7 @@ void BussiThermostat::stepTwo(State& state) {
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         Scaling(
-            view.vel, 
+            state.vel, 
             this->scaling_factor
         )
     ); 

@@ -193,10 +193,9 @@ std::array<std::array<float, 3>, 3> initialize::find_lattice_from_xyz(const std:
 
 void initialize::init_velocities(State& state, float temperature, std::mt19937& mt) {
     // デバイスから質量を転送
-    auto view = state.get_view();
     auto N = state.n_atoms;
     std::vector<float> h_mass(N);
-    cudaMemcpy(h_mass.data(), view.mass, N * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_mass.data(), state.mass, N * sizeof(float), cudaMemcpyDeviceToHost);
 
     // 平均0、分散1のガウス分布
     std::normal_distribution<float> dist_trans(0.0, 1);

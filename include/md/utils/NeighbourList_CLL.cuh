@@ -5,14 +5,14 @@
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 
-namespace md::utils {
+namespace md {
     class NeighbourList_CLL {
         public:
             NeighbourList_CLL(State& state, float _cutoff, float _margin, CellList& _cll);
             ~NeighbourList_CLL();
 
-            void generate(State& state, md::cells::CubicCell cell);
-            void check(State& state, md::cells::CubicCell cell);
+            void generate(State& state, md::cells::CubicCell& cell);
+            void check(State& state, md::cells::CubicCell& cell);
 
             unsigned int* get_list() { return this->list; }
             unsigned int* get_count() { return this->count; }

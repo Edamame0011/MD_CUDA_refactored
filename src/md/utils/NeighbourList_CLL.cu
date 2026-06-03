@@ -4,7 +4,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-using Top2 = md::utils::Top2;
+using Top2 = md::Top2;
 using CubicCell = md::cells::CubicCell;
 
 namespace {
@@ -19,7 +19,8 @@ namespace {
         const unsigned int* __restrict__ cell_id, 
         const unsigned int* __restrict__ cell_start_idx, 
         const float cutoff_margin_sq, 
-        const CubicCell cell
+        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
+        float* lattice
     ) { 
         if (!*flag) return;
 
@@ -59,7 +60,7 @@ namespace {
                         auto dy = pyi - pyj;
                         auto dz = pzi - pzj;
                     
-                        cell.apply_pbc(dx, dy, dz);
+                        apply_pbc_ptr(&dx, &dy, &dz, lattice);
                     
                         const auto dist_sq = dx * dx + dy * dy + dz * dz;
                     
@@ -105,13 +106,15 @@ namespace {
         dfloat3 pos;
         dfloat3 nl_conf;
 
-        CubicCell cell;
+        void (*apply_pbc_ptr) (float*, float*, float*, float*);
+        float* lattice;
 
         CalcDist(
             dfloat3 _pos, 
             dfloat3 _nl_conf, 
-            CubicCell _cell
-        ) : pos(_pos), nl_conf(_nl_conf), cell(_cell) {}
+            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
+            float* _lattice
+        ) : pos(_pos), nl_conf(_nl_conf), apply_pbc_ptr(_apply_pbc_ptr), lattice(_lattice) {}
 
         __device__ Top2 operator () (const int idx) const {
             auto dx = pos.x[idx] - nl_conf.x[idx];
@@ -119,7 +122,7 @@ namespace {
             auto dz = pos.z[idx] - nl_conf.z[idx];
 
             // PBC補正
-            cell.apply_pbc(dx, dy, dz);
+            apply_pbc_ptr(&dx, &dy, &dz, lattice);
 
             float dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -137,7 +140,7 @@ namespace {
     };
 }
 
-using namespace md::utils;
+using namespace md;
 
 NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin, CellList& _cll) : cutoff(_cutoff), margin(_margin), cll(_cll) {
     auto N = state.n_atoms;
@@ -167,9 +170,8 @@ NeighbourList_CLL::~NeighbourList_CLL() {
     cudaFree(this->d_temp_storage);
 }
 
-void NeighbourList_CLL::generate(State& state, CubicCell cell) {
+void NeighbourList_CLL::generate(State& state, CubicCell& cell) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
@@ -192,12 +194,13 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell
+        cell.apply_pbc_ptr, 
+        cell.d_lattice
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads>>>(
         flag, 
-        view.pos, 
+        state.pos, 
         nl_conf, 
         N
     );
@@ -206,9 +209,10 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
 
     // バッファの確保
     CalcDist op(
-        view.pos, 
+        state.pos, 
         this->nl_conf, 
-        cell
+        cell.apply_pbc_ptr, 
+        cell.d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -226,17 +230,17 @@ void NeighbourList_CLL::generate(State& state, CubicCell cell) {
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 }
 
-void NeighbourList_CLL::check(State& state, CubicCell cell) {
-    auto view = state.get_view();
+void NeighbourList_CLL::check(State& state, CubicCell& cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
     // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
     CalcDist op(
-        view.pos, 
+        state.pos, 
         this->nl_conf, 
-        cell
+        cell.apply_pbc_ptr, 
+        cell.d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -276,12 +280,13 @@ void NeighbourList_CLL::check(State& state, CubicCell cell) {
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell
+        cell.apply_pbc_ptr, 
+        cell.d_lattice
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads, 0, state.stream>>>(
         flag, 
-        view.pos, 
+        state.pos, 
         nl_conf, 
         N
     );

@@ -6,12 +6,10 @@
 
 using namespace md::observers;
 
-template <typename CellType>
-LinearExportTrajectory<CellType>::LinearExportTrajectory(int interval, bool _is_unwrap, State& state, const CellType& _cell, const std::string& output_path)
+LinearExportTrajectory::LinearExportTrajectory(int interval, bool _is_unwrap, State& state, Cell* _cell, const std::string& output_path)
  : output_interval(interval), is_unwrap(_is_unwrap), exporter(state, output_path, _cell) {}
 
-template <typename CellType>
-void LinearExportTrajectory<CellType>::output(State& state) {
+void LinearExportTrajectory::output(State& state) {
     if (state.current_steps % this->output_interval == 0) {
         float time = state.dt * state.current_steps;
         std::cout << time << ", " << std::flush;
@@ -23,8 +21,7 @@ void LinearExportTrajectory<CellType>::output(State& state) {
     }
 }
 
-template <typename CellType>
-void LinearExportTrajectory<CellType>::init(State& state) {
+void LinearExportTrajectory::init(State& state) {
     float time = state.dt * state.current_steps;
     std::cout << time << ", " << std::flush;
     if (is_unwrap) {
@@ -33,5 +30,3 @@ void LinearExportTrajectory<CellType>::init(State& state) {
         exporter.export_trajectory(state);
     }
 }
-
-template class LinearExportTrajectory<md::cells::CubicCell>;

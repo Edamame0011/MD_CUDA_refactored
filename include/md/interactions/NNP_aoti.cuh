@@ -6,14 +6,14 @@
 #include <md/utils/NeighbourList.cuh>
 #include <torch/script.h>
 #include <torch/torch.h>
+#include <md/cells/Cell.cuh>
 #include <string>
 #include <torch/csrc/inductor/aoti_package/model_package_loader.h>
 
 namespace md::interactions {
-    template <typename CellType>
     class NNP_aoti : public Interaction {
         public: 
-            NNP_aoti(State& state, CellType _cell, md::utils::NeighbourList<CellType>* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
+            NNP_aoti(State& state, Cell* _cell, NeighbourList* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
             ~NNP_aoti();
 
             void calc_force(State& state) override;
@@ -27,8 +27,8 @@ namespace md::interactions {
 
             torch::inductor::AOTIModelPackageLoader loader;
 
-            md::utils::NeighbourList<CellType>* nl;
-            CellType cell;
+            NeighbourList* nl;
+            Cell* cell;
 
             float cutoff;
 

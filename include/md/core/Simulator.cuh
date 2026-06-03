@@ -6,9 +6,9 @@
 #include <md/interactions/Interaction.cuh>
 #include <md/observers/Observer.cuh>
 #include <md/utils/compute.cuh>
+#include <md/cells/Cell.cuh>
 
 namespace md {
-    template <typename CellType>
     class Simulator {
         public:
             // コンストラクタ
@@ -17,7 +17,7 @@ namespace md {
                 Interaction *_interaction, 
                 Integrator *_integrator, 
                 Observer *_observer, 
-                CellType& _cell
+                Cell* _cell
             ) : state(_state), interaction(_interaction), integrator(_integrator), observer(_observer), cell(_cell) { }
         
             // シミュレーションの実行
@@ -33,7 +33,7 @@ namespace md {
                     cudaStreamBeginCapture(state.stream, cudaStreamCaptureModeGlobal);
                     for (int i = 0; i < num_loop_per_graph; i ++) {
                         integrator->integrateStepOne(state);
-                        cell.apply_pbc(state);
+                        cell->apply_pbc(state);
                         interaction->calc_force(state);
                         integrator->integrateStepTwo(state);
                     }
@@ -66,7 +66,7 @@ namespace md {
                     cudaGraphExec_t instance;
                     cudaStreamBeginCapture(state.stream, cudaStreamCaptureModeGlobal);
                     integrator->integrateStepOne(state);
-                    cell.apply_pbc(state);
+                    cell->apply_pbc(state);
                     cudaStreamEndCapture(state.stream, &graph);
                     cudaGraphInstantiate(&instance, graph, NULL, NULL, 0);
 
@@ -97,7 +97,7 @@ namespace md {
             Interaction* interaction;
             Integrator* integrator;
             Observer* observer;
-            CellType cell;
+            Cell* cell;
     };
 }
 
