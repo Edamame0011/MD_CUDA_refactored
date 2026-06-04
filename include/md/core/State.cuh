@@ -80,10 +80,10 @@ namespace md {
                 cudaStreamDestroy(stream);
             }
             void copy(
-                float *h_pos_x, float *h_pos_y, float *h_pos_z, 
-                float *h_vel_x, float *h_vel_y, float *h_vel_z, 
-                float *h_force_x, float *h_force_y, float *h_force_z, 
-                float *h_mass, int *h_atomic_numbers
+                const float *h_pos_x, const float *h_pos_y, const float *h_pos_z, 
+                const float *h_vel_x, const float *h_vel_y, const float *h_vel_z, 
+                const float *h_force_x, const float *h_force_y, const float *h_force_z, 
+                const float *h_mass, const int *h_atomic_numbers
             ) {
                 cudaMemcpy(pos.x, h_pos_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(pos.y, h_pos_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
@@ -106,7 +106,7 @@ namespace md {
                     }
                 );
             }
-            void copy_vel(float *h_vel_x, float *h_vel_y, float *h_vel_z) {
+            void copy_vel(const float *h_vel_x, const float *h_vel_y, const float *h_vel_z) {
                 cudaMemcpy(vel.x, h_vel_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(vel.y, h_vel_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(vel.z, h_vel_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
