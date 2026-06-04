@@ -1,5 +1,7 @@
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+
 #include <thrust/transform_reduce.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>

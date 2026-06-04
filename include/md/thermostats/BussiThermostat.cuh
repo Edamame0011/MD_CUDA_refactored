@@ -1,12 +1,19 @@
-#ifndef BUSSI_THERMOSTAT_CUH
-#define BUSSI_THERMOSTAT_CUH
+#pragma once
 
 #include <md/thermostats/Thermostat.cuh>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
-#include <md/thermostats/KinEnergyCalculator.cuh>
-#include <md/core/State.cuh>
+
 #include <random>
+#include <memory>
 #include <curand_kernel.h>
+
+namespace md {
+    class State;
+    class TemperatureScheduler;
+
+    namespace thermostats {
+        class KinEnergyCalculator;
+    }
+}
 
 namespace md::thermostats {
     class BussiThermostat : public Thermostat {
@@ -27,13 +34,11 @@ namespace md::thermostats {
         private:
             float tau;
             int dof;
-            TemperatureScheduler *scheduler = nullptr;
-            std::unique_ptr<KinEnergyCalculator> calculator = nullptr;
+            TemperatureScheduler* scheduler = nullptr;
+            std::unique_ptr<KinEnergyCalculator> calculator;
             float* scaling_factor = nullptr;
 
             // 乱数生成器
             curandState* curand_state;
     };
 }
-
-#endif

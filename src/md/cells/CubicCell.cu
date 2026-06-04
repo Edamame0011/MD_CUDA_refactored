@@ -1,4 +1,7 @@
 #include <md/cells/CubicCell.cuh>
+
+#include <md/core/State.cuh>
+
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 

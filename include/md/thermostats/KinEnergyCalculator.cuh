@@ -1,7 +1,8 @@
-#ifndef KIN_ENERGY_CALCULATOR_CUH
-#define KIN_ENERGY_CALCULATOR_CUH
+#pragma once
 
-#include <md/core/State.cuh>
+namespace md {
+    class State;
+}
 
 namespace md::thermostats {
     class KinEnergyCalculator {
@@ -15,5 +16,3 @@ namespace md::thermostats {
         size_t temp_storage_bytes = 0;
     };
 }
-
-#endif

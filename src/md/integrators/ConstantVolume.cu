@@ -1,5 +1,9 @@
 #include <md/integrators/ConstantVolume.cuh>
+
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+#include <md/thermostats/Thermostat.cuh>
+
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 

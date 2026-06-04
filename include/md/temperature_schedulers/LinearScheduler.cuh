@@ -1,8 +1,6 @@
-#ifndef LINEAR_SCHEDULER_CUH
-#define LINEAR_SCHEDULER_CUH
+#pragma once
 
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
-#include <md/thermostats/Thermostat.cuh>
 
 namespace md::temperature_schedulers {
     class LinearScheduler : public TemperatureScheduler {
@@ -17,5 +15,3 @@ namespace md::temperature_schedulers {
             float rate_per_step;
     };
 }
-
-#endif

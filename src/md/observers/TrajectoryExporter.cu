@@ -1,5 +1,7 @@
 #include <md/observers/TrajectoryExporter.cuh>
-#include <md/cells/CubicCell.cuh>
+
+#include <md/cells/Cell.cuh>
+#include <md/core/State.cuh>
 
 using namespace md::observers;
 

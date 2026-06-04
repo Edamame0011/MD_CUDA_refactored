@@ -1,10 +1,11 @@
-#ifndef __LOG_EXPORT_TRAJECTORY_CUH__
-#define __LOG_EXPORT_TRAJECTORY_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/observers/Observer.cuh>
 #include <md/observers/TrajectoryExporter.cuh>
-#include <md/cells/Cell.cuh>
+
+namespace md {
+    class Cell;
+}
 
 namespace md::observers{
     class LogExportTrajectory : public Observer {
@@ -20,5 +21,3 @@ namespace md::observers{
             TrajectoryExporter exporter;
     };
 }
-
-#endif

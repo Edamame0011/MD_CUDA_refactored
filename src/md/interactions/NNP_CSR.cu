@@ -1,8 +1,12 @@
 #include <md/interactions/NNP_CSR.cuh>
-#include <md/cells/CubicCell.cuh>
+
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <cub/cub.cuh>
+
+#include <md/core/State.cuh>
+#include <md/utils/NeighbourList.cuh>
+#include <md/cells/Cell.cuh>
 
 namespace {
     __global__ void count_pairs_kernel(

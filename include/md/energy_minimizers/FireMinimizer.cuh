@@ -1,20 +1,21 @@
-#ifndef __FIRE_MINIMIZER_CUH__
-#define __FIRE_MINIMIZER_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
-#include <md/interactions/Interaction.cuh>
-#include <md/integrators/Integrator.cuh>
-#include <md/observers/Observer.cuh>
 #include <md/energy_minimizers/EnergyMinimizer.cuh>
-#include <md/convergence_checkers/ConvChecker.cuh>
+
+namespace md {
+    class State;
+    class Interaction;
+    class Observer;
+    class Cell;
+    class ConvChecker;
+}
 
 namespace md::energy_minimizers {
-    template <typename CellType>
     class FireMinimizer : public EnergyMinimizer {
         public:
             FireMinimizer(
                 State& _state, 
-                CellType& _cell, 
+                Cell* _cell, 
                 Interaction* _interaction, 
                 Observer* _observer, 
                 ConvChecker* _checker
@@ -36,7 +37,7 @@ namespace md::energy_minimizers {
 
         private:
             State& state;
-            CellType& cell;
+            Cell* cell = nullptr;
             Interaction* interaction = nullptr;
             Observer* observer = nullptr;
             ConvChecker* checker = nullptr;
@@ -55,5 +56,3 @@ namespace md::energy_minimizers {
             bool initialdelay = true;
     };
 }
-
-#endif

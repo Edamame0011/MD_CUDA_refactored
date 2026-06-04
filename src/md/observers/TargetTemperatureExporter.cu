@@ -1,8 +1,11 @@
 #include <md/observers/TargetTemperatureExporter.cuh>
+
+#include <md/core/State.cuh>
 #include <md/observers/TrajectoryExporter.cuh>
 #include <md/core/constant.h>
 #include <md/utils/compute.cuh>
 #include <md/cells/CubicCell.cuh>
+
 using namespace md::observers;
 
 void TargetTemperatureExporter::output(State& state) {

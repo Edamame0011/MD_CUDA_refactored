@@ -1,7 +1,12 @@
 #include <md/thermostats/BussiThermostat.cuh>
+
 #include <md/core/constant.h>
-#include <thrust/transform_reduce.h>
+#include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+#include <md/core/State.cuh>
 #include <md/utils/compute.cuh>
+
+#include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
 
 namespace {

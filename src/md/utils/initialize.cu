@@ -1,7 +1,8 @@
 #include <md/utils/initialize.cuh>
-#include <md/utils/compute.cuh>
 
+#include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
 
 #include <map>
 #include <iostream>

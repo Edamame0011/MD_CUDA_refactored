@@ -1,9 +1,14 @@
-#ifndef __TARGET_TEMPERATURE_EXPORTER_CUH__
-#define __TARGET_TEMPERATURE_EXPORTER_CUH__
+#pragma once
 
 #include <md/observers/Observer.cuh>
-#include <md/cells/Cell.cuh>
+
 #include <vector>
+#include <string>
+#include <iostream>
+
+namespace md {
+    class Cell;
+}
 
 namespace md::observers {
     class TargetTemperatureExporter : public Observer {
@@ -31,5 +36,3 @@ namespace md::observers {
             int counter = 0;
     };
 }
-
-#endif

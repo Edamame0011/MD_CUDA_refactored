@@ -1,5 +1,4 @@
-#ifndef __MAX_NORM_CUH__
-#define __MAX_NORM_CUH__
+#pragma once
 
 #include <md/convergence_checkers/ConvChecker.cuh>
 
@@ -12,5 +11,3 @@ namespace md::convergence_checkers {
             float threshold = 0.0f;
     };
 }
-
-#endif

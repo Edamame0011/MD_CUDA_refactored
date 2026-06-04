@@ -1,10 +1,17 @@
-#ifndef NOSE_HOOVER_CHAIN_CUH
-#define NOSE_HOOVER_CHAIN_CUH
+#pragma once
 
 #include <md/thermostats/Thermostat.cuh>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
-#include <md/thermostats/KinEnergyCalculator.cuh>
-#include <md/core/State.cuh>
+
+#include <memory>
+
+namespace md {
+    class State;
+    class TemperatureScheduler;
+
+    namespace thermostats {
+        class KinEnergyCalculator;
+    }
+}
 
 struct ChainState {
     float *pos, *vel, *force, *mass;
@@ -28,8 +35,6 @@ namespace md::thermostats {
             float dof = 0.0f;
             ChainState c_state;
             TemperatureScheduler *scheduler = nullptr;
-            std::unique_ptr<KinEnergyCalculator> calculator = nullptr;
+            std::unique_ptr<KinEnergyCalculator> calculator;
     };
 }
-
-#endif

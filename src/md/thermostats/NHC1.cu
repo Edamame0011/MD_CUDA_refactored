@@ -1,7 +1,11 @@
 #include <md/thermostats/NHC1.cuh>
+
 #include <md/core/State.cuh>
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+
 #include <thrust/iterator/counting_iterator.h>
 #include <cmath>
 

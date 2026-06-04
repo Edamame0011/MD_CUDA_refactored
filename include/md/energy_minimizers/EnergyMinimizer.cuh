@@ -1,5 +1,4 @@
-#ifndef __ENERGY_MINIMIZER_CUH__
-#define __ENERGY_MINIMIZER_CUH__
+#pragma once
 
 namespace md {
     class EnergyMinimizer {
@@ -10,5 +9,3 @@ namespace md {
             EnergyMinimizer() = default;
     };
 }
-
-#endif

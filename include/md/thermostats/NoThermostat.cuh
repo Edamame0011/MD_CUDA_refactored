@@ -1,8 +1,10 @@
-#ifndef MD_NO_THERMOSTAT_CUH
-#define MD_NO_THERMOSTAT_CUH
+#pragma once
 
 #include <md/thermostats/Thermostat.cuh>
-#include <md/core/State.cuh>
+
+namespace md {
+    class State;
+}
 
 namespace md::thermostats {
     class NoThermostat : public Thermostat {
@@ -11,5 +13,3 @@ namespace md::thermostats {
             void stepTwo(State& state) override {}  // 何もしない
     };
 }
-
-#endif

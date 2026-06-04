@@ -1,8 +1,11 @@
 #include <md/interactions/LJPotential.cuh>
-#include <md/cells/CubicCell.cuh>
 
 #include <thrust/transform_reduce.h>
 #include <cub/cub.cuh>
+
+#include <md/core/State.cuh>
+#include <md/cells/Cell.cuh>
+#include <md/utils/NeighbourList.cuh>
 
 namespace {
     __host__ __device__ __forceinline__ float LJpotential(const float rij1, const float sij1) {

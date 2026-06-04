@@ -1,7 +1,10 @@
 #pragma once
 
-#include <md/core/State.cuh>
 #include <array>
+
+namespace md {
+    class State;
+}
 
 namespace md{
     class Cell {

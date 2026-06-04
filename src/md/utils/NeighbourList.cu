@@ -1,5 +1,7 @@
 #include <md/utils/NeighbourList.cuh>
-#include <md/cells/CubicCell.cuh>
+#include <md/cells/Cell.cuh>
+#include <md/core/State.cuh>
+
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <cub/cub.cuh>

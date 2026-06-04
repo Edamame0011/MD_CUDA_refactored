@@ -8,22 +8,22 @@
         "atoms": {
             "mode": "from_file", 
             "format": "xyz", 
-            "path": "./data/sample_LS2.xyz"
+            "path": "./data/sample_NS2.xyz"
         }, 
         "cell" : {
             "type": "cubic"
         }, 
         "interactions": {
+            "cell_list": false, 
             "neighbour_list": {
                 "cutoff": 5.0, 
-                "margin": 1.0, 
-                "cell_list": false
+                "margin": 1.0
             }, 
             "potentials": {
                 "type": "NNP_aoti", 
                 "cutoff": 5.0, 
                 "max_edges": 70000, 
-                "model_path": "./model/model_schnet_Li2O-SiO2_aoti.pt2"
+                "model_path": "/home/nozawa/SchNet/model_schnet_aoti.pt2"
             }
         }
     }, 
@@ -43,7 +43,7 @@
                 }, 
                 "use_graph": false
             }, 
-            "output": {
+            "observer": {
                 "type": "log", 
                 "divisions": 9
             }

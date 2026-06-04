@@ -1,7 +1,6 @@
 // 立方体を想定して書いています。
 
-#ifndef __CELL_LIST_CUH__
-#define __CELL_LIST_CUH__
+#pragma once
 
 #include <md/core/State.cuh>
 
@@ -39,5 +38,3 @@ namespace md {
             int apply_sort_num_threads;
     };
 }
-
-#endif

@@ -1,10 +1,7 @@
-#ifndef __LINEAR_EXPORT_TRAJECTORY_CUH__
-#define __LINEAR_EXPORT_TRAJECTORY_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/observers/Observer.cuh>
 #include <md/observers/TrajectoryExporter.cuh>
-#include <md/cells/Cell.cuh>
 
 namespace md::observers{
     class LinearExportTrajectory : public Observer {
@@ -18,5 +15,3 @@ namespace md::observers{
             TrajectoryExporter exporter;
     };
 }
-
-#endif

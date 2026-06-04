@@ -1,9 +1,8 @@
-#ifndef __CONV_CHECKER_CUH__
-#define __CONV_CHECKER_CUH__
-
-#include <md/core/State.cuh>
+#pragma once
 
 namespace md {
+    class State;
+
     class ConvChecker {
         public:
             virtual ~ConvChecker() = default;
@@ -12,5 +11,3 @@ namespace md {
             ConvChecker() = default;
     };
 }
-
-#endif

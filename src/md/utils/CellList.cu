@@ -1,4 +1,7 @@
 #include <md/utils/CellList.cuh>
+
+#include <md/core/State.cuh>
+
 #include <cub/cub.cuh>
 #include <thrust/binary_search.h>
 

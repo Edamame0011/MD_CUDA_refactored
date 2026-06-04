@@ -1,10 +1,16 @@
 #include <md/energy_minimizers/FireMinimizer.cuh>
+
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <md/cells/CubicCell.cuh>
-#include <md/core/constant.h>
 #include <thrust/execution_policy.h>
+
+#include <md/core/constant.h>
+#include <md/core/State.cuh>
+#include <md/interactions/Interaction.cuh>
+#include <md/integrators/Integrator.cuh>
 #include <md/observers/Observer.cuh>
+#include <md/convergence_checkers/ConvChecker.cuh>
+#include <md/cells/Cell.cuh>
 
 namespace {
     struct CalcDot {
@@ -111,10 +117,9 @@ namespace {
 
 using namespace md::energy_minimizers;
 
-template <typename CellType>
-FireMinimizer<CellType>::FireMinimizer(
+FireMinimizer::FireMinimizer(
     State& _state, 
-    CellType& _cell, 
+    Cell* _cell, 
     Interaction* _interaction, 
     Observer* _observer, 
     ConvChecker* _checker
@@ -124,8 +129,7 @@ FireMinimizer<CellType>::FireMinimizer(
     observer(_observer), 
     checker(_checker) {}
 
-template <typename CellType>
-void FireMinimizer<CellType>::set_hyper_parameters(
+void FireMinimizer::set_hyper_parameters(
     int _n_max, 
     int _n_delay, 
     int _n_neg_max, 
@@ -151,8 +155,7 @@ void FireMinimizer<CellType>::set_hyper_parameters(
     initialdelay = _initialdelay;
 }
 
-template <typename CellType>
-void FireMinimizer<CellType>::run() {
+void FireMinimizer::run() {
     auto N = state.n_atoms;
 
     interaction->calc_force(state);
@@ -224,7 +227,7 @@ void FireMinimizer<CellType>::run() {
                 alpha
             )
         );
-        cell.apply_pbc(state);
+        cell->apply_pbc(state);
         interaction->calc_force(state);
         thrust::for_each(
             thrust::device, 
@@ -250,5 +253,3 @@ void FireMinimizer<CellType>::run() {
         }
     }
 }
-
-template class FireMinimizer<md::cells::CubicCell>;

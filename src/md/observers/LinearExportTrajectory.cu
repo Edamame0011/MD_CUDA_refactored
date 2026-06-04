@@ -1,8 +1,11 @@
 #include <md/observers/LinearExportTrajectory.cuh>
+
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+#include <md/cells/Cell.cuh>
+
 #include <iomanip>
-#include <md/cells/CubicCell.cuh>
 
 using namespace md::observers;
 

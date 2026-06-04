@@ -1,7 +1,11 @@
 #include <md/integrators/LangevinIntegrator.cuh>
+
 #include <md/core/constant.h>
-#include <thrust/execution_policy.h>
+#include <md/core/State.cuh>
 #include <md/thermostats/Thermostat.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+
+#include <thrust/execution_policy.h>
 
 namespace {
     struct InitCurand {

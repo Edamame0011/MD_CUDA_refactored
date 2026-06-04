@@ -1,10 +1,9 @@
-#ifndef __OBSERVER_CUH__
-#define __OBSERVER_CUH__
-
-#include <md/core/State.cuh>
-#include <md/interactions/Interaction.cuh>
+#pragma once
 
 namespace md{
+    class State;
+    class Interaction;
+
     class Observer {
         public:
             virtual ~Observer () = default;
@@ -19,5 +18,3 @@ namespace md{
 namespace md::observers {
     void print_energies(State& state, Interaction* interaction);
 }
-
-#endif

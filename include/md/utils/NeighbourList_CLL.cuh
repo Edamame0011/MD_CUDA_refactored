@@ -1,5 +1,4 @@
-#ifndef __NEIGHBOUR_LIST_CLL_CUH__
-#define __NEIGHBOUR_LIST_CLL_CUH__
+#pragma once
 
 #include <md/utils/CellList.cuh>
 #include <md/cells/CubicCell.cuh>
@@ -41,5 +40,3 @@ namespace md {
             int update_nl_conf_num_threads = 0;
     };
 }
-
-#endif

@@ -1,8 +1,10 @@
-#ifndef NEIGHBOUR_LIST_CUH
-#define NEIGHBOUR_LIST_CUH
+#pragma once
 
 #include <md/core/State.cuh>
-#include <md/cells/Cell.cuh>
+
+namespace md {
+    class Cell;
+}
 
 namespace md { 
     struct Top2 {
@@ -45,5 +47,3 @@ namespace md {
             int generate_nl_num_threads = 0;
         };
 }
-
-#endif

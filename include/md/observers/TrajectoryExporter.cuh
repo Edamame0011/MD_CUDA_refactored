@@ -1,14 +1,16 @@
-#ifndef __TRAJECTORY_EXPORTER_CUH__
-#define __TRAJECTORY_EXPORTER_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <string>
 #include <vector>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <iomanip>
-#include <md/cells/Cell.cuh>
+
+namespace md {
+    class State;
+    class Cell;
+}
 
 namespace md::observers {
     class TrajectoryExporter {
@@ -28,5 +30,3 @@ namespace md::observers {
             Cell* cell;
     };
 }
-
-#endif

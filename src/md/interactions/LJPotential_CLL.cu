@@ -1,8 +1,12 @@
 #include <md/interactions/LJPotential_CLL.cuh>
-#include <md/cells/CubicCell.cuh>
+
 #include <thrust/sort.h>
 #include <thrust/transform_reduce.h>
 #include <cub/cub.cuh>
+
+#include <md/core/State.cuh>
+#include <md/utils/NeighbourList_CLL.cuh>
+
 
 using CubicCell = md::cells::CubicCell;
 

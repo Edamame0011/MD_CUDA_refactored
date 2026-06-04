@@ -1,7 +1,12 @@
 #include <md/interactions/NNP.cuh>
-#include <md/cells/CubicCell.cuh>
+
 #include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
+
+#include <md/core/State.cuh>
+#include <md/utils/NeighbourList.cuh>
+#include <md/cells/Cell.cuh>
+
 // #include <torch_tensorrt/torch_tensorrt.h>
 
 namespace {

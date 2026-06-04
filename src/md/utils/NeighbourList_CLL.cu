@@ -1,5 +1,7 @@
 #include <md/utils/NeighbourList_CLL.cuh>
-#include <md/utils/NeighbourList.cuh>
+
+#include <md/core/State.cuh>
+
 #include <cub/cub.cuh>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>

@@ -1,18 +1,21 @@
-#ifndef LJ_POTENTIAL_CUH
-#define LJ_POTENTIAL_CUH
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList.cuh>
+#include <md/core/State.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
-#include <md/cells/Cell.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
 #include <string>
+
+namespace md {
+    class Cell;
+    class NeighbourList;
+}
 
 struct lj_params {
     float *sigma, *epsilon, *cutoff, *deriv_1st_LJpotential_cutoff;
@@ -49,8 +52,7 @@ namespace md::interactions {
 }
 
 namespace md::utils::initialize {
-    template <typename CellType>
-    std::unique_ptr<md::interactions::LJPotential> init_LJPotential_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList* NL) {
+    inline std::unique_ptr<md::interactions::LJPotential> init_LJPotential_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList* NL) {
         // データの読み込み
         std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
         std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();
@@ -82,5 +84,3 @@ namespace md::utils::initialize {
         return std::make_unique<md::interactions::LJPotential>(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }
-
-#endif

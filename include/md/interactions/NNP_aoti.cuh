@@ -1,14 +1,16 @@
-#ifndef __NNP_AOTI_CUH__
-#define __NNP_AOTI_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList.cuh>
 #include <torch/script.h>
 #include <torch/torch.h>
-#include <md/cells/Cell.cuh>
 #include <string>
 #include <torch/csrc/inductor/aoti_package/model_package_loader.h>
+
+namespace md {
+    class State;
+    class Cell;
+    class NeighbourList;
+}
 
 namespace md::interactions {
     class NNP_aoti : public Interaction {
@@ -27,8 +29,8 @@ namespace md::interactions {
 
             torch::inductor::AOTIModelPackageLoader loader;
 
-            NeighbourList* nl;
-            Cell* cell;
+            NeighbourList* nl = nullptr;
+            Cell* cell = nullptr;
 
             float cutoff;
 
@@ -44,5 +46,3 @@ namespace md::interactions {
             std::vector<torch::Tensor> inputs;
     };
 }
-
-#endif

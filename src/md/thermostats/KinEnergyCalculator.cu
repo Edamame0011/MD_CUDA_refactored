@@ -1,8 +1,11 @@
 #include <md/thermostats/KinEnergyCalculator.cuh>
+
 #include <cub/cub.cuh>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
+
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
 
 namespace {
     struct CalcKinEnergy {

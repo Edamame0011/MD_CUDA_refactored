@@ -1,19 +1,23 @@
-#ifndef __LJ_POTENTIAL_CLL_CUH__
-#define __LJ_POTENTIAL_CLL_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList_CLL.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
-#include <md/cells/CubicCell.cuh>
 #include <md/interactions/LJPotential.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <algorithm>
 #include <fstream>
 #include <string>
+
+namespace md {
+    class NeighbourList_CLL;
+    
+    namespace cells {
+        class CubicCell;
+    }
+}
 
 namespace md::interactions {
     class LJPotential_CLL : public Interaction {
@@ -83,5 +87,3 @@ namespace md::utils::initialize {
         return std::make_unique<md::interactions::LJPotential_CLL>(N, num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }
-
-#endif

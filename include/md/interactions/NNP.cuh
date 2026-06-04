@@ -1,13 +1,15 @@
-#ifndef __NNP_CUH__
-#define __NNP_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList.cuh>
 #include <torch/script.h>
 #include <torch/torch.h>
 #include <string>
-#include <md/cells/Cell.cuh>
+
+namespace md {
+    class State;
+    class Cell;
+    class NeighbourList;
+}
 
 namespace md::interactions {
     class NNP : public Interaction {
@@ -44,5 +46,3 @@ namespace md::interactions {
             torch::Tensor edge_index;
     };
 }
-
-#endif

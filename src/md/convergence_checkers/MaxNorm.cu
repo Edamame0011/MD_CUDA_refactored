@@ -1,4 +1,7 @@
 #include <md/convergence_checkers/MaxNorm.cuh>
+
+#include <md/core/State.cuh>
+
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/execution_policy.h>

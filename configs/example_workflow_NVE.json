@@ -15,10 +15,10 @@
             "type": "cubic"
         }, 
         "interactions": {
+            "cell_list": false, 
             "neighbour_list": {
                 "cutoff": 2.0, 
-                "margin": 0.7, 
-                "cell_list": false
+                "margin": 0.7
             }, 
             "potentials": {
                 "type": "lennard_jones", 
@@ -42,9 +42,10 @@
                     "seed": 12345, 
                     "temperature": 2.0, 
                     "scheduler": "constant"
-                }
+                }, 
+                "use_graph": true
             }, 
-            "output": {
+            "observer": {
                 "type": "log", 
                 "divisions": 9
             }
@@ -58,9 +59,10 @@
                 "ensemble": {
                     "type": "NVE", 
                     "temperature": 2.0
-                }
+                }, 
+                "use_graph": true
             }, 
-            "output": {
+            "observer": {
                 "type": "log", 
                 "divisions": 9
             }, 

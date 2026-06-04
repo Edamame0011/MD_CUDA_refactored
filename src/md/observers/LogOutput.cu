@@ -1,6 +1,9 @@
 #include <md/observers/LogOutput.cuh>
+
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+
 #include <cmath>
 
 using namespace md::observers;

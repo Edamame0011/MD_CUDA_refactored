@@ -1,6 +1,9 @@
 #include <md/observers/LinearOutput.cuh>
+
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+
 #include <iomanip>
 
 using namespace md::observers;
