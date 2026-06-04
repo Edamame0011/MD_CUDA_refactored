@@ -1,4 +1,7 @@
 #include <md/utils/CellList.cuh>
+
+#include <md/core/State.cuh>
+
 #include <cub/cub.cuh>
 #include <thrust/binary_search.h>
 
@@ -79,7 +82,7 @@ namespace {
     
 }
 
-using namespace md::utils;
+using namespace md;
 
 CellList::CellList(int _M, float _Lbox, State& state) : M(_M), Lbox(_Lbox) {
     const auto N = state.n_atoms;
@@ -126,14 +129,13 @@ CellList::~CellList() {
 }
 
 void CellList::generate(State& state, bool* flag) {
-    auto view = state.get_view();
     auto N = state.n_atoms;
 
     int num_blocks = (N + calc_cell_id_num_threads - 1) / calc_cell_id_num_threads;
 
     calc_cell_id_kernel<<<num_blocks, calc_cell_id_num_threads, 0, state.stream>>>(
         flag, 
-        view.pos, 
+        state.pos, 
         cell_id, 
         particle_id, 
         N, 
@@ -145,7 +147,6 @@ void CellList::generate(State& state, bool* flag) {
 }
 
 void CellList::sort(State& state, bool* flag) {
-    auto view = state.get_view();
     auto N = state.n_atoms;
     const int num_cells = M * M * M;
 
@@ -164,7 +165,7 @@ void CellList::sort(State& state, bool* flag) {
     ); 
 
     apply_sort_kernel<<<num_blocks, apply_sort_num_threads, 0, state.stream>>>(
-        view.pos, 
+        state.pos, 
         sorted_pos, 
         sorted_particle_id, 
         N

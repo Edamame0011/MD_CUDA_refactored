@@ -1,9 +1,9 @@
-#ifndef MD_INTEGRATOR_CUH
-#define MD_INTEGRATOR_CUH
-
-#include <md/core/State.cuh>
+#pragma once
 
 namespace md {
+    class State;
+
+    
     class Integrator {
         public:
             virtual ~Integrator() = default;
@@ -15,5 +15,3 @@ namespace md {
             Integrator() = default;
     };
 }
-
-#endif

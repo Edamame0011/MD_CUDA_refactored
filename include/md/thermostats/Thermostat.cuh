@@ -1,9 +1,8 @@
-#ifndef MD_THERMOSTAT_CUH
-#define MD_THERMOSTAT_CUH
-
-#include <md/core/State.cuh>
+#pragma once
 
 namespace md {
+    class State;
+
     extern __constant__ float c_target_temperature;
 
     class Thermostat {
@@ -17,5 +16,3 @@ namespace md {
             Thermostat() = default;
     };
 }
-
-#endif

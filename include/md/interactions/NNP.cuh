@@ -1,18 +1,20 @@
-#ifndef __NNP_CUH__
-#define __NNP_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList.cuh>
 #include <torch/script.h>
 #include <torch/torch.h>
 #include <string>
 
+namespace md {
+    class State;
+    class Cell;
+    class NeighbourList;
+}
+
 namespace md::interactions {
-    template <typename CellType>
     class NNP : public Interaction {
         public: 
-            NNP(State& state, CellType _cell, md::utils::NeighbourList<CellType>* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
+            NNP(State& state, Cell* _cell, NeighbourList* _nl, float _cutoff, int _num_max_edges, const std::string model_path);
             ~NNP();
 
             void calc_force(State& state) override;
@@ -25,8 +27,8 @@ namespace md::interactions {
             int num_edges;
 
             torch::jit::script::Module model;
-            md::utils::NeighbourList<CellType>* nl;
-            CellType cell;
+            NeighbourList* nl;
+            Cell* cell;
 
             float cutoff;
 
@@ -44,5 +46,3 @@ namespace md::interactions {
             torch::Tensor edge_index;
     };
 }
-
-#endif

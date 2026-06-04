@@ -1,9 +1,12 @@
-#ifndef NEIGHBOUR_LIST_CUH
-#define NEIGHBOUR_LIST_CUH
+#pragma once
 
 #include <md/core/State.cuh>
 
-namespace md::utils { 
+namespace md {
+    class Cell;
+}
+
+namespace md { 
     struct Top2 {
         float max1, max2;
 
@@ -12,14 +15,13 @@ namespace md::utils {
         __host__ __device__ Top2(float m1, float m2) : max1(m1), max2(m2) {}
     };
 
-    template <typename CellType>
     class NeighbourList {
         public:
             NeighbourList(State& state, float _cutoff, float _margin);
             ~NeighbourList();
 
-            void generate(State& state, CellType cell);
-            void check(State& state, CellType cell);
+            void generate(State& state, Cell* cell);
+            void check(State& state, Cell* cell);
 
             int* get_list() { return this->list; }
             int* get_count() { return this->count; }
@@ -45,5 +47,3 @@ namespace md::utils {
             int generate_nl_num_threads = 0;
         };
 }
-
-#endif

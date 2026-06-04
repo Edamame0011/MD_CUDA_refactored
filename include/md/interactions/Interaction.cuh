@@ -1,9 +1,9 @@
-#ifndef __INTERACTIONS_CUH__
-#define __INTERACTIONS_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
+namespace md {
+    class State;
 
-namespace md {        
+    
     class Interaction {
         public:
             virtual ~Interaction () = default;
@@ -15,5 +15,3 @@ namespace md {
             Interaction() = default;
     };
 }
-
-#endif

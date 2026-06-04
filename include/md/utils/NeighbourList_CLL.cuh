@@ -1,18 +1,17 @@
-#ifndef __NEIGHBOUR_LIST_CLL_CUH__
-#define __NEIGHBOUR_LIST_CLL_CUH__
+#pragma once
 
 #include <md/utils/CellList.cuh>
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 
-namespace md::utils {
+namespace md {
     class NeighbourList_CLL {
         public:
             NeighbourList_CLL(State& state, float _cutoff, float _margin, CellList& _cll);
             ~NeighbourList_CLL();
 
-            void generate(State& state, md::cells::CubicCell cell);
-            void check(State& state, md::cells::CubicCell cell);
+            void generate(State& state, md::cells::CubicCell& cell);
+            void check(State& state, md::cells::CubicCell& cell);
 
             unsigned int* get_list() { return this->list; }
             unsigned int* get_count() { return this->count; }
@@ -41,5 +40,3 @@ namespace md::utils {
             int update_nl_conf_num_threads = 0;
     };
 }
-
-#endif

@@ -1,11 +1,10 @@
 // 立方体を想定して書いています。
 
-#ifndef __CELL_LIST_CUH__
-#define __CELL_LIST_CUH__
+#pragma once
 
 #include <md/core/State.cuh>
 
-namespace md::utils {
+namespace md {
     class CellList {
         public:
             CellList(int _M, float _Lbox, State& state);
@@ -39,5 +38,3 @@ namespace md::utils {
             int apply_sort_num_threads;
     };
 }
-
-#endif

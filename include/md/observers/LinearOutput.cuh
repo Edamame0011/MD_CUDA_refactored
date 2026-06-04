@@ -1,9 +1,6 @@
-#ifndef __LINEAR_OUTPUT_CUH__
-#define __LINEAR_OUTPUT_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/observers/Observer.cuh>
-#include <md/interactions/Interaction.cuh>
 
 namespace md::observers{
     class LinearOutput : public Observer {
@@ -16,5 +13,3 @@ namespace md::observers{
             Interaction* interaction;
     };
 }
-
-#endif

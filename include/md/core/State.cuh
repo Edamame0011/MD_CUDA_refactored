@@ -13,20 +13,15 @@ struct dint3 {
 };
 
 namespace md {
-    struct StateView {
-        dfloat3 pos, vel, force;
-        dint3 box;
-        float* mass;
-        float* mass_inv;
-        int* atomic_numbers;
-    
-        float* kinetic_energy;
-    };
-
     class State {
-        StateView view;
-
         public:
+            dfloat3 pos, vel, force;
+            dint3 box;
+            float* mass;
+            float* mass_inv;
+            int* atomic_numbers;
+            float* kinetic_energy;
+
             int n_atoms = 0;
             float dt = 0.0f;
             int current_steps = 0;
@@ -38,55 +33,52 @@ namespace md {
                 // pos・vel・forcesはx, y, zが並ぶように確保
                 float *_pos, *_vel, *_force;
                 cudaMalloc(&_pos, 3 * N * sizeof(float));
-                view.pos.x = _pos;
-                view.pos.y = _pos + N;
-                view.pos.z = _pos + 2 * N;
+                pos.x = _pos;
+                pos.y = _pos + N;
+                pos.z = _pos + 2 * N;
 
                 cudaMalloc(&_vel, 3 * N * sizeof(float));
-                view.vel.x = _vel;
-                view.vel.y = _vel + N;
-                view.vel.z = _vel + 2 * N;
+                vel.x = _vel;
+                vel.y = _vel + N;
+                vel.z = _vel + 2 * N;
 
                 cudaMalloc(&_force, 3 * N * sizeof(float));
-                view.force.x = _force;
-                view.force.y = _force + N;
-                view.force.z = _force + 2 * N;
+                force.x = _force;
+                force.y = _force + N;
+                force.z = _force + 2 * N;
 
-                cudaMalloc(&view.box.x, N * sizeof(int));
-                cudaMalloc(&view.box.y, N * sizeof(int));
-                cudaMalloc(&view.box.z, N * sizeof(int));
-                cudaMalloc(&view.mass, N * sizeof(float));
-                cudaMalloc(&view.mass_inv, N * sizeof(float));
-                cudaMalloc(&view.atomic_numbers, N * sizeof(int));
-                cudaMalloc(&view.kinetic_energy, sizeof(float));
+                cudaMalloc(&box.x, N * sizeof(int));
+                cudaMalloc(&box.y, N * sizeof(int));
+                cudaMalloc(&box.z, N * sizeof(int));
+                cudaMalloc(&mass, N * sizeof(float));
+                cudaMalloc(&mass_inv, N * sizeof(float));
+                cudaMalloc(&atomic_numbers, N * sizeof(int));
+                cudaMalloc(&kinetic_energy, sizeof(float));
                 cudaStreamCreate(&stream);
                 this->n_atoms = N;
 
-                cudaMemset(view.box.x, 0, N * sizeof(int));
-                cudaMemset(view.box.y, 0, N * sizeof(int));
-                cudaMemset(view.box.z, 0, N * sizeof(int));
+                cudaMemset(box.x, 0, N * sizeof(int));
+                cudaMemset(box.y, 0, N * sizeof(int));
+                cudaMemset(box.z, 0, N * sizeof(int));
             }
             ~State() {
-                cudaFree(view.pos.x);
-                cudaFree(view.pos.y);
-                cudaFree(view.pos.z);
-                cudaFree(view.vel.x);
-                cudaFree(view.vel.y);
-                cudaFree(view.vel.z);
-                cudaFree(view.force.x);
-                cudaFree(view.force.y);
-                cudaFree(view.force.z);
-                cudaFree(view.box.x);
-                cudaFree(view.box.y);
-                cudaFree(view.box.z);
-                cudaFree(view.mass);
-                cudaFree(view.mass_inv);
-                cudaFree(view.atomic_numbers);
-                cudaFree(view.kinetic_energy);
+                cudaFree(pos.x);
+                // cudaFree(pos.y);
+                // cudaFree(pos.z);
+                cudaFree(vel.x);
+                // cudaFree(vel.y);
+                // cudaFree(vel.z);
+                cudaFree(force.x);
+                // cudaFree(force.y);
+                // cudaFree(force.z);
+                cudaFree(box.x);
+                cudaFree(box.y);
+                cudaFree(box.z);
+                cudaFree(mass);
+                cudaFree(mass_inv);
+                cudaFree(atomic_numbers);
+                cudaFree(kinetic_energy);
                 cudaStreamDestroy(stream);
-            }
-            StateView get_view() {
-                return this->view;
             }
             void copy(
                 float *h_pos_x, float *h_pos_y, float *h_pos_z, 
@@ -94,31 +86,31 @@ namespace md {
                 float *h_force_x, float *h_force_y, float *h_force_z, 
                 float *h_mass, int *h_atomic_numbers
             ) {
-                cudaMemcpy(view.pos.x, h_pos_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.pos.y, h_pos_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.pos.z, h_pos_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.vel.x, h_vel_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.vel.y, h_vel_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.vel.z, h_vel_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.force.x, h_force_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.force.y, h_force_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.force.z, h_force_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.mass, h_mass, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.atomic_numbers, h_atomic_numbers, n_atoms * sizeof(int), cudaMemcpyHostToDevice);
+                cudaMemcpy(pos.x, h_pos_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(pos.y, h_pos_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(pos.z, h_pos_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.x, h_vel_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.y, h_vel_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.z, h_vel_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(force.x, h_force_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(force.y, h_force_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(force.z, h_force_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(mass, h_mass, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(atomic_numbers, h_atomic_numbers, n_atoms * sizeof(int), cudaMemcpyHostToDevice);
                 thrust::transform(
                     thrust::device, 
-                    view.mass, 
-                    view.mass + n_atoms, 
-                    view.mass_inv, 
+                    mass, 
+                    mass + n_atoms, 
+                    mass_inv, 
                     [] __device__ (float mass) {
                         return 1.0f / mass;
                     }
                 );
             }
             void copy_vel(float *h_vel_x, float *h_vel_y, float *h_vel_z) {
-                cudaMemcpy(view.vel.x, h_vel_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.vel.y, h_vel_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(view.vel.z, h_vel_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.x, h_vel_x, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.y, h_vel_y, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(vel.z, h_vel_z, n_atoms * sizeof(float), cudaMemcpyHostToDevice);
             }
 
             State(const State&) = delete;

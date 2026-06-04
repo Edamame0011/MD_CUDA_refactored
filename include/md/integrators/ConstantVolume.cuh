@@ -1,9 +1,11 @@
-#ifndef MD_CONSTANT_VOLUME_CUH
-#define MD_CONSTANT_VOLUME_CUH
+#pragma once
 
 #include <md/integrators/Integrator.cuh>
-#include <md/thermostats/Thermostat.cuh>
-#include <md/core/State.cuh>
+
+namespace md {
+    class State;
+    class Thermostat;
+}
 
 namespace md::integrators {
     class ConstantVolume : public Integrator {
@@ -17,5 +19,3 @@ namespace md::integrators {
             Thermostat* thermostat;
     };
 }
-
-#endif

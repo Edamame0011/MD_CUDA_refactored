@@ -1,7 +1,10 @@
 #include <md/observers/Observer.cuh>
+
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
 #include <md/core/State.cuh>
+#include <md/interactions/Interaction.cuh>
+
 #include <iomanip>
 
 void md::observers::print_energies(State& state, Interaction* interaction) {

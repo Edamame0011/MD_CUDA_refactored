@@ -1,13 +1,15 @@
-#ifndef LANGEVIN_INTEGRATOR_CUH
-#define LANGEVIN_INTEGRATOR_CUH
+#pragma once
 
 #include <md/integrators/Integrator.cuh>
-#include <md/core/State.cuh>
 #include <thrust/device_vector.h>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <curand.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
+
+namespace md {
+    class State;
+    class TemperatureScheduler;
+}
 
 namespace md::integrators {
     class LangevinIntegrator : public Integrator {
@@ -30,5 +32,3 @@ namespace md::integrators {
             thrust::device_vector<curandState> curand_state;
     };
 }
-
-#endif

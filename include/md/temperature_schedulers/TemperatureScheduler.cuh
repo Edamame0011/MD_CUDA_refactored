@@ -1,9 +1,9 @@
-#ifndef TEMPERATURE_SCHEDULER_CUH
-#define TEMPERATURE_SCHEDULER_CUH
-
-#include <md/core/State.cuh>
+#pragma once
 
 namespace md {
+    class State;
+
+    
     class TemperatureScheduler {
         public: 
             virtual ~TemperatureScheduler() = default;
@@ -14,5 +14,3 @@ namespace md {
             TemperatureScheduler() = default;
     };
 }
-
-#endif

@@ -1,7 +1,11 @@
 #include <md/integrators/LangevinIntegrator.cuh>
+
 #include <md/core/constant.h>
-#include <thrust/execution_policy.h>
+#include <md/core/State.cuh>
 #include <md/thermostats/Thermostat.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+
+#include <thrust/execution_policy.h>
 
 namespace {
     struct InitCurand {
@@ -138,19 +142,17 @@ void LangevinIntegrator::integrateStepOne(State& state) {
     const auto dt_half = state.dt * 0.5;
     const auto dt_half_conv = dt_half * conversion_factor;
 
-    auto view = state.get_view();
-
     // 更新
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator<int>(0), 
         thrust::make_counting_iterator<int>(state.n_atoms), 
         StepOne(
-            view.pos, 
-            view.vel, 
-            view.force, 
-            view.mass, 
-            view.mass_inv, 
+            state.pos, 
+            state.vel, 
+            state.force, 
+            state.mass, 
+            state.mass_inv, 
             thrust::raw_pointer_cast(this->curand_state.data()), 
             dt_half, 
             dt_half_conv, 
@@ -163,16 +165,14 @@ void LangevinIntegrator::integrateStepOne(State& state) {
 void LangevinIntegrator::integrateStepTwo(State& state) {
     const auto dt_half_conv = state.dt * 0.5 * conversion_factor;
 
-    auto view = state.get_view();
-
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         StepTwo(
-            view.vel, 
-            view.force, 
-            view.mass_inv, 
+            state.vel, 
+            state.force, 
+            state.mass_inv, 
             dt_half_conv
         )
     );

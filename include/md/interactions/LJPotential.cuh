@@ -1,9 +1,8 @@
-#ifndef LJ_POTENTIAL_CUH
-#define LJ_POTENTIAL_CUH
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList.cuh>
+#include <md/core/State.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
@@ -13,7 +12,10 @@
 #include <fstream>
 #include <string>
 
-using StateView = md::StateView;
+namespace md {
+    class Cell;
+    class NeighbourList;
+}
 
 struct lj_params {
     float *sigma, *epsilon, *cutoff, *deriv_1st_LJpotential_cutoff;
@@ -21,13 +23,12 @@ struct lj_params {
 };
 
 namespace md::interactions {
-    template <typename CellType>
     class LJPotential : public Interaction {
         public: 
             LJPotential(
                 int _num_species, 
-                CellType _cell, 
-                md::utils::NeighbourList<CellType> *_NL, 
+                Cell* _cell, 
+                NeighbourList *_NL, 
                 std::vector<float> _sigma, 
                 std::vector<float> _epsilon, 
                 std::vector<float> _cutoff, 
@@ -42,8 +43,8 @@ namespace md::interactions {
             int num_species;
             lj_params params;
             
-            CellType cell;
-            md::utils::NeighbourList<CellType> *NL;
+            Cell* cell;
+            NeighbourList *nl;
 
             // カーネル起動スレッド数
             int calc_force_num_threads;
@@ -51,8 +52,7 @@ namespace md::interactions {
 }
 
 namespace md::utils::initialize {
-    template <typename CellType>
-    std::unique_ptr<md::interactions::LJPotential<CellType>> init_LJPotential_from_json(const nlohmann::json& json, State &state, CellType &cell, NeighbourList<CellType> *NL) {
+    inline std::unique_ptr<md::interactions::LJPotential> init_LJPotential_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList* NL) {
         // データの読み込み
         std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
         std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();
@@ -64,7 +64,7 @@ namespace md::utils::initialize {
         // GPUからデータ転送
         int N = state.n_atoms;
         std::vector<int> atomic_numbers(N);
-        cudaMemcpy(atomic_numbers.data(), state.get_view().atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(atomic_numbers.data(), state.atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
 
         // identifierの作成
         std::vector<int> identifier;
@@ -81,8 +81,6 @@ namespace md::utils::initialize {
             identifier.push_back(lut[num]);
         }
 
-        return std::make_unique<md::interactions::LJPotential<CellType>>(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
+        return std::make_unique<md::interactions::LJPotential>(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }
-
-#endif

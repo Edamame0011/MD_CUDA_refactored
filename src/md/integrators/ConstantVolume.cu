@@ -1,9 +1,11 @@
 #include <md/integrators/ConstantVolume.cuh>
+
 #include <md/core/constant.h>
+#include <md/core/State.cuh>
+#include <md/thermostats/Thermostat.cuh>
+
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
-
-using StateView = md::StateView;
 
 namespace {
     struct VelocityVerletStepOne {
@@ -76,18 +78,16 @@ void ConstantVolume::integrateStepOne(State& state) {
     const auto dt = state.dt;
     const auto dt_half_conv = dt * 0.5 * conversion_factor;
 
-    auto view = state.get_view();
-
     // 更新
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         VelocityVerletStepOne(
-            view.pos, 
-            view.vel, 
-            view.force, 
-            view.mass_inv,  
+            state.pos, 
+            state.vel, 
+            state.force, 
+            state.mass_inv,  
             dt, 
             dt_half_conv
         )
@@ -96,7 +96,6 @@ void ConstantVolume::integrateStepOne(State& state) {
 
 void ConstantVolume::integrateStepTwo(State& state) {
     const auto dt_half_conv = state.dt * 0.5 * conversion_factor;
-    auto view = state.get_view();
 
     // 更新
     thrust::for_each(
@@ -104,9 +103,9 @@ void ConstantVolume::integrateStepTwo(State& state) {
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(state.n_atoms), 
         VelocityVerletStepTwo(
-            view.vel, 
-            view.force, 
-            view.mass_inv, 
+            state.vel, 
+            state.force, 
+            state.mass_inv, 
             dt_half_conv
         )
     );

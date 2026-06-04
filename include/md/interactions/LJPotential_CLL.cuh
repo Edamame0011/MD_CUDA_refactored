@@ -1,13 +1,9 @@
-#ifndef __LJ_POTENTIAL_CLL_CUH__
-#define __LJ_POTENTIAL_CLL_CUH__
+#pragma once
 
-#include <md/core/State.cuh>
 #include <md/interactions/Interaction.cuh>
-#include <md/utils/NeighbourList_CLL.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
-#include <md/cells/CubicCell.cuh>
 #include <md/interactions/LJPotential.cuh>
 
 #include <external/nlohmann/json.hpp>
@@ -15,7 +11,13 @@
 #include <fstream>
 #include <string>
 
-using StateView = md::StateView;
+namespace md {
+    class NeighbourList_CLL;
+    
+    namespace cells {
+        class CubicCell;
+    }
+}
 
 namespace md::interactions {
     class LJPotential_CLL : public Interaction {
@@ -23,8 +25,8 @@ namespace md::interactions {
             LJPotential_CLL(
                 int _num_atoms, 
                 int _num_species, 
-                md::cells::CubicCell _cell, 
-                md::utils::NeighbourList_CLL *_NL, 
+                md::cells::CubicCell& _cell, 
+                NeighbourList_CLL *_nl, 
                 std::vector<float> _sigma, 
                 std::vector<float> _epsilon, 
                 std::vector<float> _cutoff, 
@@ -40,8 +42,8 @@ namespace md::interactions {
             int* original_identifier;
             lj_params params;
             
-            md::cells::CubicCell cell;
-            md::utils::NeighbourList_CLL *NL;
+            md::cells::CubicCell& cell;
+            NeighbourList_CLL *nl;
 
             dfloat3 force_buffer;
 
@@ -65,7 +67,7 @@ namespace md::utils::initialize {
         // GPUからデータ転送
         int N = state.n_atoms;
         std::vector<int> atomic_numbers(N);
-        cudaMemcpy(atomic_numbers.data(), state.get_view().atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(atomic_numbers.data(), state.atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
 
         // identifierの作成
         std::vector<int> identifier;
@@ -85,5 +87,3 @@ namespace md::utils::initialize {
         return std::make_unique<md::interactions::LJPotential_CLL>(N, num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }
-
-#endif

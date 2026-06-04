@@ -1,7 +1,11 @@
 #include <md/thermostats/NHC1.cuh>
+
 #include <md/core/State.cuh>
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
+#include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+
 #include <thrust/iterator/counting_iterator.h>
 #include <cmath>
 
@@ -111,7 +115,6 @@ void NHC1::stepTwo(State& state) {
 
 void NHC1::op(State& state) {
     auto N = state.n_atoms;
-    auto view = state.get_view();
     this->scheduler->get_temperature(state);
     update_mass<<<1, 1, 0, state.stream>>>(
         c_state.mass, 
@@ -123,7 +126,7 @@ void NHC1::op(State& state) {
     calculator->calc_kinetic_energy(state);
     
     calc_scaling_factor<<<1, 1, 0, state.stream>>>(
-        view.kinetic_energy, 
+        state.kinetic_energy, 
         this->c_state, 
         state.dt, 
         dof, 
@@ -135,7 +138,7 @@ void NHC1::op(State& state) {
         thrust::make_counting_iterator(0), 
         thrust::make_counting_iterator(N), 
         Scaling(
-            view.vel, 
+            state.vel, 
             c_state.scaling_factor
         )
     );

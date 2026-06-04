@@ -1,5 +1,4 @@
-#ifndef CONSTANT_SCHEDULER_CUH
-#define CONSTANT_SCHEDULER_CUH
+#pragma once
 
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 
@@ -16,5 +15,3 @@ namespace md::temperature_schedulers {
             float target_temperature;
     };
 }
-
-#endif

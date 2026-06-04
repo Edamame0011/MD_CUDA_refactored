@@ -1,10 +1,16 @@
 #include <md/energy_minimizers/FireMinimizer.cuh>
+
 #include <thrust/transform_reduce.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <md/cells/CubicCell.cuh>
-#include <md/core/constant.h>
 #include <thrust/execution_policy.h>
+
+#include <md/core/constant.h>
+#include <md/core/State.cuh>
+#include <md/interactions/Interaction.cuh>
+#include <md/integrators/Integrator.cuh>
 #include <md/observers/Observer.cuh>
+#include <md/convergence_checkers/ConvChecker.cuh>
+#include <md/cells/Cell.cuh>
 
 namespace {
     struct CalcDot {
@@ -111,10 +117,9 @@ namespace {
 
 using namespace md::energy_minimizers;
 
-template <typename CellType>
-FireMinimizer<CellType>::FireMinimizer(
+FireMinimizer::FireMinimizer(
     State& _state, 
-    CellType& _cell, 
+    Cell* _cell, 
     Interaction* _interaction, 
     Observer* _observer, 
     ConvChecker* _checker
@@ -124,8 +129,7 @@ FireMinimizer<CellType>::FireMinimizer(
     observer(_observer), 
     checker(_checker) {}
 
-template <typename CellType>
-void FireMinimizer<CellType>::set_hyper_parameters(
+void FireMinimizer::set_hyper_parameters(
     int _n_max, 
     int _n_delay, 
     int _n_neg_max, 
@@ -151,15 +155,13 @@ void FireMinimizer<CellType>::set_hyper_parameters(
     initialdelay = _initialdelay;
 }
 
-template <typename CellType>
-void FireMinimizer<CellType>::run() {
+void FireMinimizer::run() {
     auto N = state.n_atoms;
-    auto view = state.get_view();
 
     interaction->calc_force(state);
-    cudaMemset(view.vel.x, 0.0f, N * sizeof(float));
-    cudaMemset(view.vel.y, 0.0f, N * sizeof(float));
-    cudaMemset(view.vel.z, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.x, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.y, 0.0f, N * sizeof(float));
+    cudaMemset(state.vel.z, 0.0f, N * sizeof(float));
 
     int n_pos = 0;
     int n_neg = 0;
@@ -176,8 +178,8 @@ void FireMinimizer<CellType>::run() {
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             CalcDot(
-                view.vel, 
-                view.force
+                state.vel, 
+                state.force
             ), 
             0.0f, 
             thrust::plus()
@@ -202,8 +204,8 @@ void FireMinimizer<CellType>::run() {
                 thrust::make_counting_iterator(0),  
                 thrust::make_counting_iterator(N), 
                 Correct(
-                    view.pos, 
-                    view.vel, 
+                    state.pos, 
+                    state.vel, 
                     dt * 0.5f
                 )
             );
@@ -216,25 +218,25 @@ void FireMinimizer<CellType>::run() {
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(N), 
             IntegrateStepOne(
-                view.pos, 
-                view.vel, 
-                view.force, 
-                view.mass_inv, 
+                state.pos, 
+                state.vel, 
+                state.force, 
+                state.mass_inv, 
                 dt, 
                 dt_half_conv, 
                 alpha
             )
         );
-        cell.apply_pbc(state);
+        cell->apply_pbc(state);
         interaction->calc_force(state);
         thrust::for_each(
             thrust::device, 
             thrust::make_counting_iterator(0), 
             thrust::make_counting_iterator(state.n_atoms), 
             IntegrateStepTwo(
-                view.vel, 
-                view.force, 
-                view.mass_inv, 
+                state.vel, 
+                state.force, 
+                state.mass_inv, 
                 dt_half_conv
             )
         );
@@ -251,5 +253,3 @@ void FireMinimizer<CellType>::run() {
         }
     }
 }
-
-template class FireMinimizer<md::cells::CubicCell>;
