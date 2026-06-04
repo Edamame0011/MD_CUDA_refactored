@@ -1,5 +1,4 @@
-#ifndef MD_STATE_CUH
-#define MD_STATE_CUH
+#pragma once
 
 #include <thrust/transform.h>
 #include <thrust/execution_policy.h>
@@ -117,5 +116,3 @@ namespace md {
             State& operator=(const State&) = delete;
     };
 }
-
-#endif
