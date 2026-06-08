@@ -37,6 +37,7 @@
 #include <md/convergence_checkers/MaxNorm.cuh>
 #include <md/energy_minimizers/FireMinimizer.cuh>
 #include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/observers/TrajectoryExporter.cuh>
 
 using namespace md::utils;
 using namespace md;
@@ -97,7 +98,7 @@ void SimulationRunner::run() {
             // シミュレーターの作成
             Simulator simulator(*state, interaction.get(), integrator.get(), observer.get(), cell.get());
 
-                // 時間の計測
+            // 時間の計測
             auto start = std::chrono::steady_clock::now();
 
             // シミュレーションの実行
@@ -127,6 +128,20 @@ void SimulationRunner::run() {
             
         } else {
             throw std::runtime_error("stepキーワードが未知です。");
+        }
+
+        // シミュレーション終了後の処理
+        if (step.contains("save_last_structure")) {
+            json s = step.at("save_last_structure");
+            std::string output_path = s.at("path").get<std::string>();
+            bool is_unwrap = s.at("is_unwrap").get<bool>();
+
+            md::observers::TrajectoryExporter exporter(*state, output_path, cell.get());
+            if (is_unwrap) {
+                exporter.export_trajectory_unwrap(*state);
+            } else {
+                exporter.export_trajectory(*state);
+            }
         }
     }
 }
