@@ -105,8 +105,8 @@ void BussiThermostat::stepTwo(State& state) {
     // スケーリング
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(state.n_atoms), 
         Scaling(
             state.vel, 
             this->scaling_factor

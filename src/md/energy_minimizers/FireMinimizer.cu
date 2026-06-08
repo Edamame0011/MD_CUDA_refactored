@@ -18,7 +18,7 @@ namespace {
 
         CalcDot(dfloat3 _v, dfloat3 _f) : vel(_v), force(_f) {}
 
-        __device__ float operator() (const int idx) const {
+        __device__ float operator() (const size_t idx) const {
             return vel.x[idx] * force.x[idx] + vel.y[idx] * force.y[idx] + vel.z[idx] * force.z[idx];
         }
     };
@@ -27,7 +27,7 @@ namespace {
         dfloat3 pos, vel;
         float dt_half;
         Correct(dfloat3 p, dfloat3 v, float _dt_half) : pos(p), vel(v), dt_half(_dt_half) {}
-        __device__ void operator() (const int idx) {
+        __device__ void operator() (const size_t idx) {
             const auto px = pos.x[idx] - dt_half * vel.x[idx];
             const auto py = pos.y[idx] - dt_half * vel.y[idx];
             const auto pz = pos.z[idx] - dt_half * vel.z[idx];
@@ -60,7 +60,7 @@ namespace {
             float _alpha
         ) : pos(p), vel(v), force(f), mass_inv(mi), dt(_dt), dt_half_conv(_dt_half_conv), alpha(_alpha) {}
 
-        __device__ void operator() (const int idx) {
+        __device__ void operator() (const size_t idx) {
             const auto mi = mass_inv[idx];
 
             const auto fx = force.x[idx];
@@ -104,7 +104,7 @@ namespace {
             float _dt_half_conv
         ) : vel(_vel), force(_force), mass_inv(_mass_inv), dt_half_conv(_dt_half_conv) {}
 
-        __host__ __device__ void operator() (int idx) {
+        __host__ __device__ void operator() (size_t idx) {
             const auto mi = mass_inv[idx];
 
             // 速度の更新
@@ -175,8 +175,8 @@ void FireMinimizer::run() {
     for (int i = 0; i < n_max; i ++) {
         float p = thrust::transform_reduce(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(N), 
+            thrust::make_counting_iterator<size_t>(0), 
+            thrust::make_counting_iterator<size_t>(N), 
             CalcDot(
                 state.vel, 
                 state.force
@@ -201,8 +201,8 @@ void FireMinimizer::run() {
             }
             thrust::for_each(
                 thrust::device, 
-                thrust::make_counting_iterator(0),  
-                thrust::make_counting_iterator(N), 
+                thrust::make_counting_iterator<size_t>(0),  
+                thrust::make_counting_iterator<size_t>(N), 
                 Correct(
                     state.pos, 
                     state.vel, 
@@ -215,8 +215,8 @@ void FireMinimizer::run() {
 
         thrust::for_each(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(N), 
+            thrust::make_counting_iterator<size_t>(0), 
+            thrust::make_counting_iterator<size_t>(N), 
             IntegrateStepOne(
                 state.pos, 
                 state.vel, 
@@ -231,8 +231,8 @@ void FireMinimizer::run() {
         interaction->calc_force(state);
         thrust::for_each(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(state.n_atoms), 
+            thrust::make_counting_iterator<size_t>(0), 
+            thrust::make_counting_iterator<size_t>(state.n_atoms), 
             IntegrateStepTwo(
                 state.vel, 
                 state.force, 

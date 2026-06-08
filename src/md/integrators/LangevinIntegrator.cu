@@ -15,7 +15,7 @@ namespace {
         InitCurand(curandState* _states, unsigned long long _seed) 
             : states(_states), seed(_seed) {}
 
-        __device__ void operator() (const int idx) {
+        __device__ void operator() (const size_t idx) {
             curand_init(seed, idx, 0, &states[idx]);
         }
     };
@@ -50,7 +50,7 @@ namespace {
             c1(_c1), 
             boltzmann_constant(_boltzmann_constant) {}
         
-        __device__ void operator() (const int idx) {
+        __device__ void operator() (const size_t idx) {
             auto cs = states[idx];
             const auto m = mass[idx];
             const auto mi = mass_inv[idx];
@@ -124,13 +124,14 @@ using namespace md::integrators;
 void LangevinIntegrator::init(const State& state, unsigned long long seed) {
     this->dof = 3 * state.n_atoms;
     this->c1 = std::exp(-this->gamma * state.dt);
+    size_t N = state.n_atoms;
 
     this->curand_state.resize(state.n_atoms);
 
     thrust::for_each(
         thrust::device, 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(N), 
         InitCurand(thrust::raw_pointer_cast(curand_state.data()), seed)
     );
 }
@@ -142,11 +143,13 @@ void LangevinIntegrator::integrateStepOne(State& state) {
     const auto dt_half = state.dt * 0.5;
     const auto dt_half_conv = dt_half * conversion_factor;
 
+    size_t N = state.n_atoms;
+
     // 更新
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(N), 
         StepOne(
             state.pos, 
             state.vel, 
@@ -164,11 +167,12 @@ void LangevinIntegrator::integrateStepOne(State& state) {
 
 void LangevinIntegrator::integrateStepTwo(State& state) {
     const auto dt_half_conv = state.dt * 0.5 * conversion_factor;
+    size_t N = state.n_atoms;
 
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(N), 
         StepTwo(
             state.vel, 
             state.force, 

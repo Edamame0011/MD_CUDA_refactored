@@ -19,7 +19,14 @@ TrajectoryExporter::TrajectoryExporter(State& state, const std::string& output_p
 
     species.resize(N);
     for (size_t i = 0; i < N; i ++) {
-        species[i] = atom_number_map[h_atomic_numbers[i] - 1];
+        int atomic_num = h_atomic_numbers[i];
+
+        if (atomic_num < 1 || atomic_num > 20) { 
+            throw std::runtime_error("Invalid atomic number detected.");
+
+        } else {
+            species[i] = atom_number_map[atomic_num - 1];
+        }    
     }
 
     h_pos.resize(3 * N);

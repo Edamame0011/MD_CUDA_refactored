@@ -6,12 +6,9 @@ namespace md {
     class Integrator;
     class Observer;
     class Cell;
-}
 
-namespace md {
     class Simulator {
         public:
-            // コンストラクタ
             Simulator(
                 State& _state, 
                 Interaction *_interaction, 

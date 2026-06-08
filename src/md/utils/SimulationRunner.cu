@@ -34,6 +34,7 @@
 #include <md/observers/LinearExportTrajectory.cuh>
 #include <md/observers/LogExportTrajectory.cuh>
 #include <md/observers/TargetTemperatureExporter.cuh>
+#include <md/observers/LogplusStrideExportTrajectory.cuh>
 #include <md/convergence_checkers/MaxNorm.cuh>
 #include <md/energy_minimizers/FireMinimizer.cuh>
 #include <md/thermostats/KinEnergyCalculator.cuh>
@@ -261,6 +262,26 @@ void SimulationRunner::build_observer(const json& o_setting) {
             output_path, 
             cell.get(), 
             is_unwrap
+        );
+
+    } else if(o_type == "log_plus_stride_export_trajectory") {
+        size_t num_trajectory = o_setting.at("num_trajectory");
+        float stride = o_setting.at("stride");
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        int counter = 5;
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+        string output_path = o_setting.at("output_path").get<string>();
+        
+        this->observer = std::make_unique<md::observers::LogplusStrideExportTrajectory>(
+            num_trajectory, 
+            stride, 
+            log_interval, 
+            counter, 
+            is_unwrap, 
+            *state, 
+            cell.get(), 
+            output_path
         );
 
     } else {

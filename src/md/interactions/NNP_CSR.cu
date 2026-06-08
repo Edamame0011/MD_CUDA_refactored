@@ -191,10 +191,10 @@ NNP_CSR::NNP_CSR(
     cudaGetDevice(&current_device);
     auto opt = torch::TensorOptions().device(torch::Device(torch::kCUDA, current_device));
 
-    x = torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64));
+    x = torch::from_blob(x_ptr, {(int)N}, opt.dtype(torch::kInt64));
     edge_index = torch::from_blob(edge_index_ptr, {2, num_max_edges}, opt.dtype(torch::kInt64));
     edge_weight = torch::from_blob(edge_weight_ptr, {3, num_max_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
-    offsets = torch::from_blob(offsets_ptr, {N + 1}, opt.dtype(torch::kInt64));
+    offsets = torch::from_blob(offsets_ptr, {(int)N + 1}, opt.dtype(torch::kInt64));
 
     // cubのバッファを確保
         cub::DeviceScan::ExclusiveSum(

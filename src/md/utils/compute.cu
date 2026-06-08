@@ -124,8 +124,8 @@ float md::utils::compute::calc_kinetic_energy(State& state) {
     // 運動エネルギーの計算
     auto kinetic_energy = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N),  
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(N),  
         CalcKinEnergy(
             state.vel, 
             state.mass
