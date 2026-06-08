@@ -255,8 +255,8 @@ void LJPotential::calc_potential(State& state) {
     // ポテンシャルの計算
     state.potential_energy = thrust::transform_reduce(
         thrust::cuda::par.on(state.stream), 
-        thrust::make_counting_iterator<size_t>(0), 
-        thrust::make_counting_iterator<size_t>(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         CalcPotential(
             state.pos, 
             params, 

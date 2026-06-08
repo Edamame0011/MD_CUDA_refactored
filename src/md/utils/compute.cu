@@ -63,8 +63,8 @@ void md::utils::compute::remove_drift(State& state) {
     // calc drift
     float weighted_sum_x = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         Multiply(
             state.vel.x, 
             state.mass
@@ -73,8 +73,8 @@ void md::utils::compute::remove_drift(State& state) {
         thrust::plus<float>());
     float weighted_sum_y = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         Multiply(
             state.vel.y, 
             state.mass
@@ -83,8 +83,8 @@ void md::utils::compute::remove_drift(State& state) {
         thrust::plus<float>());
     float weighted_sum_z = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         Multiply(
             state.vel.z, 
             state.mass
@@ -107,8 +107,8 @@ void md::utils::compute::remove_drift(State& state) {
     // remove drift
     thrust::for_each(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         RemoveDrift(
             state.vel, 
             avg_x, 
@@ -124,8 +124,8 @@ float md::utils::compute::calc_kinetic_energy(State& state) {
     // 運動エネルギーの計算
     auto kinetic_energy = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator<size_t>(0), 
-        thrust::make_counting_iterator<size_t>(N),  
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N),  
         CalcKinEnergy(
             state.vel, 
             state.mass

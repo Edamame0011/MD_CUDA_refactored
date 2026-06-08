@@ -21,14 +21,14 @@ namespace md {
             int* atomic_numbers;
             float* kinetic_energy;
 
-            size_t n_atoms = 0;
+            int n_atoms = 0;
             float dt = 0.0f;
-            size_t current_steps = 0;
+            int current_steps = 0;
             float potential_energy = 0;
 
             cudaStream_t stream;
 
-            State(size_t N) {
+            State(int N) {
                 // pos・vel・forcesはx, y, zが並ぶように確保
                 float *_pos, *_vel, *_force;
                 cudaMalloc(&_pos, 3 * N * sizeof(float));
