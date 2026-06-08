@@ -25,7 +25,7 @@ namespace {
             float _dt_half_conv
         ) : pos(_pos), vel(_vel), force(_force), mass_inv(_mass_inv), dt(_dt), dt_half_conv(_dt_half_conv) {}
 
-        __host__ __device__ void operator() (int idx) {
+        __host__ __device__ void operator() (size_t idx) {
             const auto mi = mass_inv[idx];
 
             // 速度の更新
@@ -58,7 +58,7 @@ namespace {
             float _dt_half_conv
         ) : vel(_vel), force(_force), mass_inv(_mass_inv), dt_half_conv(_dt_half_conv) {}
 
-        __host__ __device__ void operator() (int idx) {
+        __host__ __device__ void operator() (size_t idx) {
             const auto mi = mass_inv[idx];
 
             // 速度の更新
@@ -81,8 +81,8 @@ void ConstantVolume::integrateStepOne(State& state) {
     // 更新
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(state.n_atoms), 
         VelocityVerletStepOne(
             state.pos, 
             state.vel, 
@@ -100,8 +100,8 @@ void ConstantVolume::integrateStepTwo(State& state) {
     // 更新
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(state.n_atoms), 
         VelocityVerletStepTwo(
             state.vel, 
             state.force, 

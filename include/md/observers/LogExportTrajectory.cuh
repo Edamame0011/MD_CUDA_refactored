@@ -1,10 +1,14 @@
 #pragma once
 
 #include <md/observers/Observer.cuh>
-#include <md/observers/TrajectoryExporter.cuh>
+#include <memory>
 
 namespace md {
     class Cell;
+    
+    namespace observers {
+        class TrajectoryExporter;
+    }
 }
 
 namespace md::observers{
@@ -18,6 +22,6 @@ namespace md::observers{
             int counter;
             float checker;
             bool is_unwrap;
-            TrajectoryExporter exporter;
+            std::unique_ptr<TrajectoryExporter> exporter;
     };
 }

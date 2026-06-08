@@ -65,7 +65,7 @@ namespace {
         dfloat3 vel;
         float* scaling_factor;
         Scaling(dfloat3 _vel, float* _sf) : vel(_vel), scaling_factor(_sf) {}
-        __device__ void operator() (int idx) {
+        __device__ void operator() (size_t idx) {
             auto sf = *scaling_factor;
             vel.x[idx] *= sf;
             vel.y[idx] *= sf;
@@ -135,8 +135,8 @@ void NHC1::op(State& state) {
 
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream),  
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(N), 
         Scaling(
             state.vel, 
             c_state.scaling_factor
