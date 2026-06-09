@@ -49,7 +49,7 @@ using json = nlohmann::json;
 SimulationRunner::SimulationRunner(const string& setting_path) {
     // jsonのロード
     std::ifstream f(setting_path);
-    if (!f.is_open()) throw std::runtime_error("ファイルを開けません。" );
+    if (!f.is_open()) throw std::runtime_error("jsonファイルを開けません。" );
     this->j = json::parse(f);
 
     json m_setting = j.at("meta");
@@ -90,7 +90,7 @@ void SimulationRunner::run() {
 
             state->dt = s_setting.at("dt");
 
-            if (j.value("step", "") == "reset") {
+            if (step.value("step", "") == "reset") {
                 state->current_steps = 0;
             }
 
