@@ -17,6 +17,7 @@
 #include <md/integrators/ConstantVolume.cuh>
 #include <md/interactions/LJPotential.cuh>
 #include <md/interactions/LJPotential_CLL.cuh>
+#include <md/interactions/LJPotential_uCLL.cuh>
 #include <md/interactions/NNP.cuh>
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/observers/LinearOutput.cuh>
@@ -26,7 +27,9 @@
 #include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/utils/NeighbourList_CLL.cuh>
+#include <md/utils/NeighbourList_uCLL.cuh>
 #include <md/utils/SortedCellList.cuh>
+#include <md/utils/UnsortedCellList.cuh>
 #include <md/observers/LogOutput.cuh>
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.cuh>
@@ -356,38 +359,59 @@ void SimulationRunner::build_ensemble(const json& e_setting) {
 
 void SimulationRunner::build_interaction(const json& i_setting) {
     bool use_cll = i_setting.value("cell_list", false);
+    bool use_sort = i_setting.value("sort", false);
+
+    json n_setting = i_setting.at("neighbour_list");
+    float cutoff = n_setting.value("cutoff", 5.0f);
+    float margin = n_setting.value("margin", 1.0f);
 
     if (use_cll) {
-        json n_setting = i_setting.at("neighbour_list");
-        float cutoff = n_setting.value("cutoff", 5.0f);
-        float margin = n_setting.value("margin", 1.0f);
+        if (use_sort) {
+            // cell listの初期化
+            auto lattice = cell->lattice;
+            int Mx = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
+            int My = std::max(3, (int)(lattice[1][1] / (cutoff + margin)));
+            int Mz = std::max(3, (int)(lattice[2][2] / (cutoff + margin)));
+            std::array<int, 3> M = {Mx, My, Mz};
+            this->cll = std::make_unique<SortedCellList>(M, cell.get(), *state);
 
-        // cell listの初期化
-        auto lattice = cell->lattice;
-        int Mx = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
-        int My = std::max(3, (int)(lattice[1][1] / (cutoff + margin)));
-        int Mz = std::max(3, (int)(lattice[2][2] / (cutoff + margin)));
-        std::array<int, 3> M = {Mx, My, Mz};
-        this->cll = std::make_unique<SortedCellList>(M, cell.get(), *state);
+            // neighbour listの初期化
+            this->nl_cll = std::make_unique<NeighbourList_CLL>(*state, cutoff, margin, *cll);
+            nl_cll->generate(*state, cell.get());
 
-        // neighbour listの初期化
-        this->nl_cll = std::make_unique<NeighbourList_CLL>(*state, cutoff, margin, *cll);
-        nl_cll->generate(*state, cell.get());
+            // potantialの初期化
+            json p_setting = i_setting.at("potentials");
+            string p_type = p_setting.value("type", "lennard_jones");
 
-        // potantialの初期化
-        json p_setting = i_setting.at("potentials");
-        string p_type = p_setting.value("type", "lennard_jones");
+            if (p_type == "lennard_jones") {
+                this->interaction = md::utils::initialize::init_LJPotential_CLL_from_json(p_setting, *state, cell.get(), nl_cll.get());
+            } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
 
-        if (p_type == "lennard_jones") {
-            this->interaction = md::utils::initialize::init_LJPotential_CLL_from_json(p_setting, *state, cell.get(), nl_cll.get());
-        } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+        } else {
+            // cell listの初期化
+            auto lattice = cell->lattice;
+            int Mx = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
+            int My = std::max(3, (int)(lattice[1][1] / (cutoff + margin)));
+            int Mz = std::max(3, (int)(lattice[2][2] / (cutoff + margin)));
+            std::array<int, 3> M = {Mx, My, Mz};
+            this->ucll = std::make_unique<UnsortedCellList>(M, cell.get(), *state);
+
+            // neighbour listの初期化
+            this->nl_ucll = std::make_unique<NeighbourList_uCLL>(*state, cutoff, margin, *ucll);
+            nl_ucll->generate(*state, cell.get());
+
+            // potantialの初期化
+            json p_setting = i_setting.at("potentials");
+            string p_type = p_setting.value("type", "lennard_jones");
+
+            if (p_type == "lennard_jones") {
+                this->interaction = md::utils::initialize::init_LJPotential_uCLL_from_json(p_setting, *state, cell.get(), nl_ucll.get());
+            } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+
+        }
 
     } else {
         // neighbour listの初期化
-        json n_setting = i_setting.at("neighbour_list");
-        float cutoff = n_setting.value("cutoff", 5.0f);
-        float margin = n_setting.value("margin", 1.0f);
-
         this->nl = std::make_unique<NeighbourList>(*state, cutoff, margin);
         nl->generate(*state, cell.get());
 

@@ -19,6 +19,8 @@ namespace md {
     class EnergyMinimizer;
     class SortedCellList;
     class NeighbourList_CLL;
+    class UnsortedCellList;
+    class NeighbourList_uCLL;
 }
 
 namespace md::utils {
@@ -47,6 +49,9 @@ namespace md::utils {
 
             std::unique_ptr<SortedCellList> cll;
             std::unique_ptr<NeighbourList_CLL> nl_cll;
+
+            std::unique_ptr<UnsortedCellList> ucll;
+            std::unique_ptr<NeighbourList_uCLL> nl_ucll;
 
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;
