@@ -1,8 +1,4 @@
-// 立方体を想定して書いています。
-
 #pragma once
-
-#include <md/core/State.cuh>
 
 namespace md {
     class CellList {

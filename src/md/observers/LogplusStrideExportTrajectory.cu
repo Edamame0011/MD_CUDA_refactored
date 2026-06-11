@@ -54,13 +54,11 @@ void LogplusStrideExportTrajectory::init(State& state) {
     std::cout << time << ", " << std::flush;
 
     for (size_t i = 0; i < num_trajectory; i ++) {
-        if (time > checkers[i]) {
-            if (is_unwrap) {
-                exporters[i]->export_trajectory_unwrap(state);
-            }
-            else {
-                exporters[i]->export_trajectory(state);
-            }
+        if (is_unwrap) {
+            exporters[i]->export_trajectory_unwrap(state);
+        }
+        else {
+            exporters[i]->export_trajectory(state);
         }
     }
 }
