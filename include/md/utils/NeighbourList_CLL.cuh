@@ -1,32 +1,34 @@
 #pragma once
 
-#include <md/utils/CellList.cuh>
-#include <md/cells/CubicCell.cuh>
-#include <md/utils/NeighbourList.cuh>
+#include <md/core/State.cuh>
 
 namespace md {
+    class SortedCellList;
+    class Top2;
+    class Cell;
+
     class NeighbourList_CLL {
         public:
-            NeighbourList_CLL(State& state, float _cutoff, float _margin, CellList& _cll);
+            NeighbourList_CLL(State& state, float _cutoff, float _margin, SortedCellList& _cll);
             ~NeighbourList_CLL();
 
-            void generate(State& state, md::cells::CubicCell& cell);
-            void check(State& state, md::cells::CubicCell& cell);
+            void generate(State& state, Cell* cell);
+            void check(State& state, Cell* cell);
 
-            unsigned int* get_list() { return this->list; }
-            unsigned int* get_count() { return this->count; }
+            int* get_list() { return this->list; }
+            int* get_count() { return this->count; }
             int get_max_neighbours() { return this->max_neighbours; }
-            CellList& get_cell_list() { return this->cll; }
+            SortedCellList& get_cell_list() { return this->cll; }
 
             NeighbourList_CLL(const NeighbourList_CLL&) = delete;
             NeighbourList_CLL& operator=(const NeighbourList_CLL&) = delete;
         private:
-            CellList& cll;
+            SortedCellList& cll;
 
             float cutoff, margin;
             float Lbox;
             dfloat3 nl_conf; 
-            unsigned int *list, *count;
+            int *list, *count;
             size_t max_neighbours;
             Top2* top2;
             bool* flag;

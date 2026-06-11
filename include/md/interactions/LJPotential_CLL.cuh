@@ -13,10 +13,7 @@
 
 namespace md {
     class NeighbourList_CLL;
-    
-    namespace cells {
-        class CubicCell;
-    }
+    class Cell;
 }
 
 namespace md::interactions {
@@ -25,7 +22,7 @@ namespace md::interactions {
             LJPotential_CLL(
                 int _num_atoms, 
                 int _num_species, 
-                md::cells::CubicCell& _cell, 
+                Cell* _cell, 
                 NeighbourList_CLL *_nl, 
                 std::vector<float> _sigma, 
                 std::vector<float> _epsilon, 
@@ -42,7 +39,7 @@ namespace md::interactions {
             int* original_identifier;
             lj_params params;
             
-            md::cells::CubicCell& cell;
+            Cell* cell;
             NeighbourList_CLL *nl;
 
             dfloat3 force_buffer;
@@ -55,7 +52,7 @@ namespace md::interactions {
 }
 
 namespace md::utils::initialize {
-    inline std::unique_ptr<md::interactions::LJPotential_CLL> init_LJPotential_CLL_from_json(const nlohmann::json& json, State &state, md::cells::CubicCell &cell, NeighbourList_CLL *NL) {
+    inline std::unique_ptr<md::interactions::LJPotential_CLL> init_LJPotential_CLL_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList_CLL *NL) {
         // データの読み込み
         std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
         std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();

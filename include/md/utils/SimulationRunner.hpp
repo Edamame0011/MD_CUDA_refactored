@@ -17,6 +17,8 @@ namespace md {
     class Thermostat;
     class ConvChecker;
     class EnergyMinimizer;
+    class SortedCellList;
+    class NeighbourList_CLL;
 }
 
 namespace md::utils {
@@ -42,6 +44,9 @@ namespace md::utils {
 
             std::unique_ptr<ConvChecker> checker;
             std::unique_ptr<EnergyMinimizer> minimizer;
+
+            std::unique_ptr<SortedCellList> cll;
+            std::unique_ptr<NeighbourList_CLL> nl_cll;
 
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;

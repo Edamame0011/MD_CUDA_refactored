@@ -6,9 +6,8 @@
 
 #include <md/core/State.cuh>
 #include <md/utils/NeighbourList_CLL.cuh>
-
-
-using CubicCell = md::cells::CubicCell;
+#include <md/cells/Cell.cuh>
+#include <md/utils/SortedCellList.cuh>
 
 namespace {
     __host__ __device__ __forceinline__ float LJpotential(const float rij1, const float sij1) {
@@ -36,8 +35,8 @@ namespace {
         dfloat3 pos, 
         dfloat3 force, 
         lj_params params, 
-        const unsigned int* __restrict__ list, 
-        const unsigned int* __restrict__ count, 
+        const int* __restrict__ list, 
+        const int* __restrict__ count, 
         void (*apply_pbc_ptr) (float*, float*, float*, float*), 
         float* lattice
     ) {
@@ -112,8 +111,8 @@ namespace {
         const lj_params params;
         int num_species;
         int max_neighbours;
-        const unsigned int* __restrict__ list;
-        const unsigned int* __restrict__ count;
+        const int* __restrict__ list;
+        const int* __restrict__ count;
         void (*apply_pbc_ptr) (float*, float*, float*, float*); 
         float* lattice; 
 
@@ -122,8 +121,8 @@ namespace {
             lj_params _params,  
             int _num_species, 
             int _max_neighbours,
-            const unsigned int* _list,
-            const unsigned int* _count,
+            const int* _list,
+            const int* _count,
             void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
             float* _lattice
         ) : 
@@ -181,10 +180,10 @@ namespace {
     __global__ void apply_sort_kernel(
         const dfloat3 old_force, 
         dfloat3 new_force, 
-        const unsigned int* sorted_id, 
+        const int* sorted_id, 
         const int num_atoms
     ) {
-        unsigned int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        int idx = threadIdx.x + blockDim.x * blockIdx.x;
         if (idx >= num_atoms) return;
 
         auto old_idx = sorted_id[idx];
@@ -197,10 +196,10 @@ namespace {
     __global__ void apply_forward_sort_kernel(
         const int* __restrict__ original, 
         int* __restrict__ sorted, 
-        const unsigned int* __restrict__ sorted_id, 
+        const int* __restrict__ sorted_id, 
         const int num_atoms
     ) {
-        unsigned int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        int idx = threadIdx.x + blockDim.x * blockIdx.x;
         if (idx >= num_atoms) return;
 
         auto old_idx = sorted_id[idx];
@@ -213,7 +212,7 @@ using namespace md::interactions;
 LJPotential_CLL::LJPotential_CLL(
     int _num_atoms, 
     int _num_species, 
-    CubicCell& _cell, 
+    Cell* _cell, 
     NeighbourList_CLL* _nl, 
     std::vector<float> _sigma, 
     std::vector<float> _epsilon, 
@@ -300,8 +299,8 @@ void LJPotential_CLL::calc_force(State& state) {
         params, 
         nl->get_list(), 
         nl->get_count(), 
-        cell.apply_pbc_ptr, 
-        cell.d_lattice
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 
     apply_sort_kernel<<<grid_size_sort, apply_sort_num_threads, 0, state.stream>>>(
@@ -341,8 +340,8 @@ void LJPotential_CLL::calc_potential(State& state) {
             nl->get_max_neighbours(),
             nl->get_list(),
             nl->get_count(),
-            cell.apply_pbc_ptr, 
-            cell.d_lattice
+            cell->apply_pbc_ptr, 
+            cell->d_lattice
         ), 
         0.0f, 
         thrust::plus<float>()

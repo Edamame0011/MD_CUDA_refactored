@@ -1,13 +1,15 @@
 #include <md/utils/NeighbourList_CLL.cuh>
 
 #include <md/core/State.cuh>
+#include <md/utils/NeighbourList.cuh>
+#include <md/cells/Cell.cuh>
+#include <md/utils/SortedCellList.cuh>
 
 #include <cub/cub.cuh>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 using Top2 = md::Top2;
-using CubicCell = md::cells::CubicCell;
 
 namespace {
     __global__ void generate_nl_kernel(
@@ -15,11 +17,13 @@ namespace {
         const dfloat3 sorted_pos, 
         const int num_atoms, 
         const int max_neighbours, 
-        const int M, 
-        unsigned int* __restrict__ list, 
-        unsigned int* __restrict__ count, 
-        const unsigned int* __restrict__ cell_id, 
-        const unsigned int* __restrict__ cell_start_idx, 
+        const int Mx, 
+        const int My, 
+        const int Mz, 
+        int* __restrict__ list, 
+        int* __restrict__ count, 
+        const int* __restrict__ cell_id, 
+        const int* __restrict__ cell_start_idx, 
         const float cutoff_margin_sq, 
         void (*apply_pbc_ptr) (float*, float*, float*, float*), 
         float* lattice
@@ -38,17 +42,17 @@ namespace {
         int c = 0;
 
         // 自身の属するセルと隣接するセル内の隣接粒子を計算
-        int cx = cid % M;
-        int cy  = (cid / M) % M;
-        int cz = cid / (M * M);
+        int cx = cid % Mx;
+        int cy  = (cid / Mx) % My;
+        int cz = cid / (Mx * My);
 
         for (int dz = -1; dz <= 1; dz ++) {
             for (int dy = -1; dy <= 1; dy ++) {
                 for (int dx = -1; dx <= 1; dx ++) {
-                    int jx = (cx + dx + M) % M;
-                    int jy = (cy + dy + M) % M;
-                    int jz = (cz + dz + M) % M;
-                    int jcell = jx + jy * M + jz * M * M;
+                    int jx = (cx + dx + Mx) % Mx;
+                    int jy = (cy + dy + My) % My;
+                    int jz = (cz + dz + Mz) % Mz;
+                    int jcell = jx + jy * Mx + jz * Mx * My;
 
                     int start_idx = cell_start_idx[jcell];
                     int end_idx = cell_start_idx[jcell + 1];
@@ -58,13 +62,13 @@ namespace {
                         auto pyj = sorted_pos.y[j];
                         auto pzj = sorted_pos.z[j];
                     
-                        auto dx = pxi - pxj;
-                        auto dy = pyi - pyj;
-                        auto dz = pzi - pzj;
+                        auto dx_pos = pxi - pxj;
+                        auto dy_pos = pyi - pyj;
+                        auto dz_pos = pzi - pzj;
                     
-                        apply_pbc_ptr(&dx, &dy, &dz, lattice);
+                        apply_pbc_ptr(&dx_pos, &dy_pos, &dz_pos, lattice);
                     
-                        const auto dist_sq = dx * dx + dy * dy + dz * dz;
+                        const auto dist_sq = dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos;
                     
                         if (dist_sq < cutoff_margin_sq) {
                             list[idx * max_neighbours + c] = j;
@@ -144,7 +148,7 @@ namespace {
 
 using namespace md;
 
-NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin, CellList& _cll) : cutoff(_cutoff), margin(_margin), cll(_cll) {
+NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin, SortedCellList& _cll) : cutoff(_cutoff), margin(_margin), cll(_cll) {
     auto N = state.n_atoms;
     this->max_neighbours = 1000;
     cudaMalloc(&this->list, (size_t)N * max_neighbours * sizeof(int));
@@ -172,7 +176,7 @@ NeighbourList_CLL::~NeighbourList_CLL() {
     cudaFree(this->d_temp_storage);
 }
 
-void NeighbourList_CLL::generate(State& state, CubicCell& cell) {
+void NeighbourList_CLL::generate(State& state, Cell* cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
@@ -190,14 +194,16 @@ void NeighbourList_CLL::generate(State& state, CubicCell& cell) {
         cll.get_sorted_pos(), 
         N, 
         max_neighbours, 
-        cll.get_M(), 
+        cll.get_M()[0], 
+        cll.get_M()[1], 
+        cll.get_M()[2], 
         list, 
         count, 
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell.apply_pbc_ptr, 
-        cell.d_lattice
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads>>>(
@@ -213,8 +219,8 @@ void NeighbourList_CLL::generate(State& state, CubicCell& cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell.apply_pbc_ptr, 
-        cell.d_lattice
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -232,7 +238,7 @@ void NeighbourList_CLL::generate(State& state, CubicCell& cell) {
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 }
 
-void NeighbourList_CLL::check(State& state, CubicCell& cell) {
+void NeighbourList_CLL::check(State& state, Cell* cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
@@ -241,8 +247,8 @@ void NeighbourList_CLL::check(State& state, CubicCell& cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell.apply_pbc_ptr, 
-        cell.d_lattice
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -276,14 +282,16 @@ void NeighbourList_CLL::check(State& state, CubicCell& cell) {
         cll.get_sorted_pos(), 
         N, 
         max_neighbours, 
-        cll.get_M(), 
+        cll.get_M()[0], 
+        cll.get_M()[1], 
+        cll.get_M()[2], 
         list, 
         count, 
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell.apply_pbc_ptr, 
-        cell.d_lattice
+        cell->apply_pbc_ptr, 
+        cell->d_lattice
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads, 0, state.stream>>>(
