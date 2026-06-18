@@ -54,9 +54,9 @@ namespace {
 
     __global__ void build_graph_kernel(
         dfloat3 pos, 
-        int64_t* __restrict__ edge_index_ptr, 
+        int32_t* __restrict__ edge_index_ptr, 
         float* __restrict__ edge_weight_ptr, 
-        const int64_t* __restrict__ offsets, 
+        const int32_t* __restrict__ offsets, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
         void (*apply_pbc_ptr) (float*, float*, float*, float*), 
@@ -64,7 +64,7 @@ namespace {
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours, 
-        const int num_max_edges
+        const int num_edges
     ) {
         const int idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >= num_atoms) return;
@@ -105,11 +105,11 @@ namespace {
 
             if (dist_sq < cutoff * cutoff) {
                 edge_index_ptr[write_idx] = idx;
-                edge_index_ptr[num_max_edges + write_idx] = j;
+                edge_index_ptr[num_edges + write_idx] = j;
 
                 edge_weight_ptr[write_idx] = dx;
-                edge_weight_ptr[num_max_edges + write_idx] = dy;
-                edge_weight_ptr[2 * num_max_edges + write_idx] = dz;
+                edge_weight_ptr[num_edges + write_idx] = dy;
+                edge_weight_ptr[2 * num_edges + write_idx] = dz;
 
                 write_idx ++;
             }
@@ -118,31 +118,10 @@ namespace {
 
     __global__ void append_total_sum_kernel(
         const int* src_array, 
-        int64_t* dst_array, 
+        int32_t* dst_array, 
         int N
     ) {
         dst_array[N] = dst_array[N - 1] + (int64_t)src_array[N - 1];
-    }
-
-    __global__ void padding_kernel(
-        int64_t* __restrict__ edge_index_ptr, 
-        float* __restrict__ edge_weight_ptr, 
-        const int64_t* __restrict__ total_edges, 
-        const int num_nodes, 
-        const int num_max_edges
-    ){
-        const int64_t num_edges = total_edges[0];
-        const int idx = threadIdx.x + blockDim.x * blockIdx.x;
-        const int pad_idx = num_edges + idx;
-
-        if (pad_idx >= num_max_edges) return;
-
-        edge_index_ptr[pad_idx] = 0;
-        edge_index_ptr[num_max_edges + pad_idx] = 0;
-
-        edge_weight_ptr[pad_idx] = 1e+5f;
-        edge_weight_ptr[num_max_edges + pad_idx] = 0.0f;
-        edge_weight_ptr[2 * num_max_edges + pad_idx] = 0.0f;
     }
 }
 
@@ -155,26 +134,14 @@ NNP_CSR::NNP_CSR(
     float _cutoff, 
     int _num_max_edges, 
     const std::string model_path
-) : cell(_cell), cutoff(_cutoff), nl(_nl), num_max_edges(_num_max_edges) {
-    // モデルの読み込み
-    try {
-        model = torch::jit::load(model_path, torch::kCUDA);
-        std::cout << "モデルを読み込みました：" << model_path << std::endl;
-    }
-    catch(c10::Error& e) {
-        std::cerr << "モデルの読み込みに失敗しました。" << std::endl
-                  << e.what() << std::endl;
-        throw;
-    }
-    model.eval();
-
+) : cell(_cell), cutoff(_cutoff), nl(_nl), num_max_edges(_num_max_edges), loader(model_path) {
     auto N = state.n_atoms;
 
     // メモリの確保
     cudaMalloc(&x_ptr, N * sizeof(int64_t));
-    cudaMalloc(&edge_index_ptr, 2 * num_max_edges * sizeof(int64_t));
+    cudaMalloc(&edge_index_ptr, 2 * num_max_edges * sizeof(int32_t));
     cudaMalloc(&edge_weight_ptr, 3 * num_max_edges * sizeof(float));
-    cudaMalloc(&offsets_ptr, (N + 1) * sizeof(int64_t));
+    cudaMalloc(&offsets_ptr, (N + 1) * sizeof(int32_t));
     cudaMalloc(&counts, N * sizeof(int));
 
     // 原子番号はシミュレーションを通して変わらないため、最初に初期化する
@@ -186,18 +153,8 @@ NNP_CSR::NNP_CSR(
         x_ptr
     );
 
-    // torch::Tensorをメモリのビューとして作成
-    int current_device;
-    cudaGetDevice(&current_device);
-    auto opt = torch::TensorOptions().device(torch::Device(torch::kCUDA, current_device));
-
-    x = torch::from_blob(x_ptr, {(int)N}, opt.dtype(torch::kInt64));
-    edge_index = torch::from_blob(edge_index_ptr, {2, num_max_edges}, opt.dtype(torch::kInt64));
-    edge_weight = torch::from_blob(edge_weight_ptr, {3, num_max_edges}, opt.dtype(torch::kFloat32)).set_requires_grad(true);
-    offsets = torch::from_blob(offsets_ptr, {(int)N + 1}, opt.dtype(torch::kInt64));
-
     // cubのバッファを確保
-        cub::DeviceScan::ExclusiveSum(
+    cub::DeviceScan::ExclusiveSum(
         d_temp_storage, 
         temp_storage_bytes, 
         counts, 
@@ -206,11 +163,6 @@ NNP_CSR::NNP_CSR(
         state.stream
     );
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
-
-    // 3回推論しておく
-    for (int i = 0; i < 3; i ++) {
-        model.forward({x, edge_index, edge_weight, offsets});
-    }
 }
 
 NNP_CSR::~NNP_CSR() {
@@ -256,6 +208,11 @@ void NNP_CSR::create_graph(State& state) {
         N
     );
 
+    int h_num_edges = 0;
+    cudaMemcpyAsync(&h_num_edges, offsets_ptr + N, sizeof(int), cudaMemcpyDeviceToHost, state.stream);
+    cudaStreamSynchronize(state.stream);
+    this->num_edges = h_num_edges;
+
     build_graph_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
         state.pos, 
         edge_index_ptr, 
@@ -268,16 +225,7 @@ void NNP_CSR::create_graph(State& state) {
         cutoff, 
         N, 
         nl->get_max_neighbours(), 
-        num_max_edges
-    );
-
-    int num_blocks_edges = (num_max_edges + num_threads - 1) / num_threads;
-    padding_kernel<<<num_blocks_edges, num_threads, 0, state.stream>>>(
-        edge_index_ptr, 
-        edge_weight_ptr, 
-        offsets_ptr + N, 
-        N, 
-        num_max_edges
+        num_edges
     );
 }
 
@@ -286,44 +234,51 @@ void NNP_CSR::calc_force(State& state) {
     nl->check(state, cell);
     create_graph(state);
 
-    // ストリームを指定
-    c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
-    c10::cuda::CUDAStreamGuard guard(torch_stream);
+    auto opt = torch::TensorOptions().device(torch::kCUDA);
+    inputs = {
+        torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64)), 
+        torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt32)), 
+        torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)), 
+        torch::from_blob(offsets_ptr, {N + 1}, opt.dtype(torch::kInt32))
+    };
 
-    auto result_iv = model.forward({x, edge_index, edge_weight, offsets});
+    c10::InferenceMode mode;
+    int current_device;
+    cudaGetDevice(&current_device);
+    c10::cuda::CUDAStreamGuard guard(
+        c10::cuda::getStreamFromExternal(state.stream, current_device)
+    );
+    auto outputs = loader.run(inputs);
 
-    auto result_tuple = result_iv.toTuple();
-    auto elements = result_tuple->elements();
+    float* force_ptr = outputs[1].data_ptr<float>();
 
-    auto energy = elements[0].toTensor().to(torch::kFloat32).detach();
-    auto forces = elements[1].toTensor().to(torch::kFloat32).detach();
-
-    // libtorch側のポインター
-    float* forces_ptr = forces.data_ptr<float>();
-
-    // 値のコピー
-    cudaMemcpyAsync(state.force.x, forces_ptr, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
-    cudaMemcpyAsync(state.force.y, forces_ptr + N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
-    cudaMemcpyAsync(state.force.z, forces_ptr + 2 * N, N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
+    cudaMemcpyAsync(state.force.x, force_ptr, 3 * N * sizeof(float), cudaMemcpyDeviceToDevice, state.stream);
 }
 
 void NNP_CSR::calc_potential(State& state) {
     nl->check(state, cell);
     create_graph(state);
 
-    // ストリームを指定
-    c10::cuda::CUDAStream torch_stream = c10::cuda::getStreamFromExternal(state.stream, x.device().index());
-    c10::cuda::CUDAStreamGuard guard(torch_stream);
+    int N = state.n_atoms;
 
-    auto result_iv = model.forward({x, edge_index, edge_weight, offsets});
+    auto opt = torch::TensorOptions().device(torch::kCUDA);
+    inputs = {
+        torch::from_blob(x_ptr, {N}, opt.dtype(torch::kInt64)), 
+        torch::from_blob(edge_index_ptr, {2, num_edges}, opt.dtype(torch::kInt32)), 
+        torch::from_blob(edge_weight_ptr, {3, num_edges}, opt.dtype(torch::kFloat32)), 
+        torch::from_blob(offsets_ptr, {N + 1}, opt.dtype(torch::kInt32))
+    };
 
-    auto result_tuple = result_iv.toTuple();
-    auto elements = result_tuple->elements();
+    c10::InferenceMode mode;
+    int current_device;
+    cudaGetDevice(&current_device);
+    c10::cuda::CUDAStreamGuard guard(
+        c10::cuda::getStreamFromExternal(state.stream, current_device)
+    );
 
-    auto energy = elements[0].toTensor().to(torch::kFloat32).detach();
-    auto forces = elements[1].toTensor().to(torch::kFloat32).detach();
+    auto outputs = loader.run(inputs);
 
-    float* energy_ptr = energy.data_ptr<float>();
+    float* energy_ptr = outputs[0].data_ptr<float>();
 
-    cudaMemcpyAsync(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost, state.stream);
+    cudaMemcpy(&state.potential_energy, energy_ptr, sizeof(float), cudaMemcpyDeviceToHost);
 }

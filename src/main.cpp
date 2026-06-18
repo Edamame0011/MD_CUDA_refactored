@@ -10,6 +10,7 @@ int main(int argc, char* argv[]) {
         }
     
         std::string json_path = argv[1];
+
         md::utils::SimulationRunner runner(json_path);
         runner.run();
     
