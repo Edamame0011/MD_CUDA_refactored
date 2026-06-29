@@ -3,6 +3,7 @@
 #include <md/utils/compute.cuh>
 #include <md/core/constant.h>
 #include <md/core/State.cuh>
+#include <md/cells/Cell.cuh>
 
 #include <map>
 #include <iostream>
@@ -97,7 +98,7 @@ namespace {
 
 using namespace md::utils;
 
-std::unique_ptr<md::State> initialize::read_state_from_xyz(std::array<std::array<float, 3>, 3>& lattice, const std::string& path) {
+std::unique_ptr<md::State> initialize::read_state_from_xyz(std::unique_ptr<Cell>& cell, const std::string& path) {
     std::ifstream file(path);
 
     if(!file.is_open()) {
@@ -122,7 +123,8 @@ std::unique_ptr<md::State> initialize::read_state_from_xyz(std::array<std::array
     iss >> lattice_x[0] >> lattice_x[1] >> lattice_x[2] >> 
            lattice_y[0] >> lattice_y[1] >> lattice_y[2] >>
            lattice_z[0] >> lattice_z[1] >> lattice_z[2];
-    lattice = {lattice_x, lattice_y, lattice_z};
+    std::array<float, 3> lattice = {lattice_x[0], lattice_y[1], lattice_z[2]};
+    cell = std::make_unique<Cell>(lattice);
 
     // 原子の情報を保持する変数
     std::vector<int> h_atomic_numbers(N);
@@ -224,15 +226,17 @@ void initialize::init_velocities(State& state, float temperature, std::mt19937& 
     md::utils::compute::remove_drift(state);
 }
 
-std::unique_ptr<md::State> initialize::generate_binary_lj(const int n_atoms, const float density, std::array<std::array<float, 3>, 3>& lattice, const float a_ratio, std::mt19937 &mt) {
+std::unique_ptr<md::State> initialize::generate_binary_lj(const int n_atoms, const float density, std::unique_ptr<Cell>& cell, const float a_ratio, std::mt19937 &mt) {
     float Lbox = std::pow(n_atoms / density, 1.0f / 3.0f);
-    lattice = {{{Lbox, 0, 0}, {0, Lbox, 0}, {0, 0, Lbox}}};
+    std::array<float, 3> lattice = {Lbox, Lbox, Lbox};
     std::vector<float> masses(n_atoms, 1.0f);
     std::vector<float> positions_x(n_atoms, 0.0f), positions_y(n_atoms, 0.0f), positions_z(n_atoms, 0.0f);
     std::vector<float> velocities_x(n_atoms, 0.0f), velocities_y(n_atoms, 0.0f), velocities_z(n_atoms, 0.0f);
     std::vector<float> forces_x(n_atoms, 0.0f), forces_y(n_atoms, 0.0f), forces_z(n_atoms, 0.0f);
     std::vector<int> box_x(n_atoms, 0), box_y(n_atoms, 0), box_z(n_atoms, 0);
     std::vector<int> atomic_numbers(n_atoms, 0);
+
+    cell = std::make_unique<Cell>(lattice);
 
     // 位置の初期化
     const auto ln = static_cast<int>(std::ceil(std::pow(n_atoms, 1.0f / 3.0f)));

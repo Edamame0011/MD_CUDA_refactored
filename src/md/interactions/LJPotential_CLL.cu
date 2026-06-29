@@ -9,6 +9,8 @@
 #include <md/cells/Cell.cuh>
 #include <md/utils/SortedCellList.cuh>
 
+using Cell = md::Cell;
+
 namespace {
     __host__ __device__ __forceinline__ float LJpotential(const float rij1, const float sij1) {
         const float rij2 = rij1 * rij1;
@@ -37,8 +39,7 @@ namespace {
         lj_params params, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
-        float* lattice
+        Cell cell
     ) {
         int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
         int warp_id = global_tid / 32;
@@ -72,7 +73,7 @@ namespace {
             float dy = pyi - pyj;
             float dz = pzi - pzj;
         
-            apply_pbc_ptr(&dx, &dy, &dz, lattice);
+            cell.apply_pbc_device(&dx, &dy, &dz);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             const float rc = params.cutoff[si * num_species + sj];   
@@ -113,8 +114,7 @@ namespace {
         int max_neighbours;
         const int* __restrict__ list;
         const int* __restrict__ count;
-        void (*apply_pbc_ptr) (float*, float*, float*, float*); 
-        float* lattice; 
+        Cell cell;
 
         CalcPotential(
             dfloat3 _pos, 
@@ -123,8 +123,7 @@ namespace {
             int _max_neighbours,
             const int* _list,
             const int* _count,
-            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
-            float* _lattice
+            Cell _cell
         ) : 
         pos(_pos), 
         params(_params),
@@ -132,8 +131,7 @@ namespace {
         max_neighbours(_max_neighbours),
         list(_list),
         count(_count),
-        apply_pbc_ptr(_apply_pbc_ptr), 
-        lattice(_lattice) {}
+        cell(_cell) {}
 
         __device__ float operator() (const int i) const {
             float potential = 0.0f;
@@ -158,7 +156,7 @@ namespace {
                 auto dy = pyi - pyj;
                 auto dz = pzi - pzj;
 
-                apply_pbc_ptr(&dx, &dy, &dz, lattice);
+                cell.apply_pbc_device(&dx, &dy, &dz);
 
                 const auto dist_sq = dx * dx + dy * dy + dz * dz;
                 const auto r_c = params.cutoff[si * num_species + sj];
@@ -299,8 +297,7 @@ void LJPotential_CLL::calc_force(State& state) {
         params, 
         nl->get_list(), 
         nl->get_count(), 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
 
     apply_sort_kernel<<<grid_size_sort, apply_sort_num_threads, 0, state.stream>>>(
@@ -340,8 +337,7 @@ void LJPotential_CLL::calc_potential(State& state) {
             nl->get_max_neighbours(),
             nl->get_list(),
             nl->get_count(),
-            cell->apply_pbc_ptr, 
-            cell->d_lattice
+            *cell
         ), 
         0.0f, 
         thrust::plus<float>()

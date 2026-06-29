@@ -10,6 +10,7 @@
 #include <thrust/iterator/transform_iterator.h>
 
 using Top2 = md::Top2;
+using Cell = md::Cell;
 
 namespace {
     __global__ void generate_nl_kernel(
@@ -25,8 +26,7 @@ namespace {
         const int* __restrict__ cell_id, 
         const int* __restrict__ cell_start_idx, 
         const float cutoff_margin_sq, 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
-        float* lattice
+        Cell cell
     ) { 
         if (!*flag) return;
 
@@ -66,7 +66,7 @@ namespace {
                         auto dy_pos = pyi - pyj;
                         auto dz_pos = pzi - pzj;
                     
-                        apply_pbc_ptr(&dx_pos, &dy_pos, &dz_pos, lattice);
+                        cell.apply_pbc_device(&dx_pos, &dy_pos, &dz_pos);
                     
                         const auto dist_sq = dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos;
                     
@@ -112,15 +112,13 @@ namespace {
         dfloat3 pos;
         dfloat3 nl_conf;
 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*);
-        float* lattice;
+        Cell cell;
 
         CalcDist(
             dfloat3 _pos, 
             dfloat3 _nl_conf, 
-            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
-            float* _lattice
-        ) : pos(_pos), nl_conf(_nl_conf), apply_pbc_ptr(_apply_pbc_ptr), lattice(_lattice) {}
+            Cell _cell
+        ) : pos(_pos), nl_conf(_nl_conf), cell(_cell) {}
 
         __device__ Top2 operator () (const int idx) const {
             auto dx = pos.x[idx] - nl_conf.x[idx];
@@ -128,7 +126,7 @@ namespace {
             auto dz = pos.z[idx] - nl_conf.z[idx];
 
             // PBC補正
-            apply_pbc_ptr(&dx, &dy, &dz, lattice);
+            cell.apply_pbc_device(&dx, &dy, &dz);
 
             float dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -202,8 +200,7 @@ void NeighbourList_CLL::generate(State& state, Cell* cell) {
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads>>>(
@@ -219,8 +216,7 @@ void NeighbourList_CLL::generate(State& state, Cell* cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -247,8 +243,7 @@ void NeighbourList_CLL::check(State& state, Cell* cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -290,8 +285,7 @@ void NeighbourList_CLL::check(State& state, Cell* cell) {
         cll.get_cell_id(), 
         cll.get_cell_start_idx(), 
         cutoff_margin_sq, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
 
     update_nl_conf_kernel<<<update_nl_conf_num_blocks, update_nl_conf_num_threads, 0, state.stream>>>(

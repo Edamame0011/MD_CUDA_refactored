@@ -43,8 +43,8 @@ namespace {
             v0 += dt_quarter * f0;
 
             // スケーリング
-            float sf = exp(-dt_half * v0);
-            AKIN *= exp(-dt * v0);
+            float sf = __expf(-dt_half * v0);
+            AKIN *= __expf(-dt * v0);
 
             // 変位の更新
             p0 += dt_half * v0;

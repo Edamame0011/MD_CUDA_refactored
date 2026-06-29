@@ -9,22 +9,27 @@ namespace md {
 namespace md{
     class Cell {
         public:
-            virtual ~Cell() {
-                cudaFree(d_lattice);
+            Cell(std::array<float, 3> _lattice): 
+            lattice{_lattice[0], _lattice[1], _lattice[2]}, 
+            lattice_inv{1.0f/_lattice[0], 1.0f/_lattice[1], 1.0f/_lattice[2]} {}
+
+            __forceinline__ __device__ void apply_pbc_device(float* x, float* y, float* z) const {
+                *x -= lattice.x * roundf(*x * lattice_inv.x);
+                *y -= lattice.y * roundf(*y * lattice_inv.y);
+                *z -= lattice.z * roundf(*z * lattice_inv.z);
             }
 
-            virtual void apply_pbc(State& state) const = 0;
-
-            void (*apply_pbc_ptr) (float*, float*, float*, float*);
-            std::array<std::array<float, 3>, 3> lattice;
-            float* d_lattice;
-
-        protected:
-            Cell(const std::array<std::array<float, 3>, 3>& _lattice) : lattice(_lattice) {
-                cudaMalloc(&d_lattice, 3 * 3 * sizeof(float));
+            __forceinline__ __device__ void apply_pbc_wrap_device(float* x, float* y, float* z) const {
+                *x -= lattice.x * floorf(*x * lattice_inv.x);
+                *y -= lattice.y * floorf(*y * lattice_inv.y);
+                *z -= lattice.z * floorf(*z * lattice_inv.z);
             }
 
-            Cell(const Cell&) = delete;
-            Cell& operator=(const Cell&) = delete;
+            void apply_pbc(State& state) const;
+
+            std::array<float, 3> get_lattice() { return std::array<float, 3>{lattice.x, lattice.y, lattice.z}; }
+        private:
+            const float3 lattice;
+            const float3 lattice_inv;
     };
 }

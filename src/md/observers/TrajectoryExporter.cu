@@ -35,7 +35,7 @@ TrajectoryExporter::TrajectoryExporter(State& state, const std::string& output_p
 }
 
 void TrajectoryExporter::export_trajectory(State& state) {
-    auto lattice = cell->lattice;
+    auto lattice = cell->get_lattice();
     
     size_t N = state.n_atoms;
 
@@ -54,7 +54,7 @@ void TrajectoryExporter::export_trajectory(State& state) {
     // ファイルに出力
     ofs << std::setprecision(7) << std::scientific;
     ofs << N << "\n";
-    ofs << "Lattice=\"" << lattice[0][0] << " 0.0 0.0 0.0 " << lattice[1][1] << " 0.0 0.0 0.0 " << lattice[2][2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"T T T\"" << "\n";
+    ofs << "Lattice=\"" << lattice[0] << " 0.0 0.0 0.0 " << lattice[1] << " 0.0 0.0 0.0 " << lattice[2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"T T T\"" << "\n";
     for (size_t i = 0; i < N; i ++) {
         ofs << species[i] << " "
             << h_pos[i] << " " << h_pos[N + i] << " " << h_pos[2 * N + i] << " "
@@ -63,7 +63,7 @@ void TrajectoryExporter::export_trajectory(State& state) {
 }
 
 void TrajectoryExporter::export_trajectory_unwrap(State& state) {
-    auto lattice = cell->lattice;
+    auto lattice = cell->get_lattice();
 
     size_t N = state.n_atoms;
 
@@ -87,12 +87,12 @@ void TrajectoryExporter::export_trajectory_unwrap(State& state) {
     // ファイルに出力
     ofs << std::setprecision(7) << std::scientific;
     ofs << N << "\n";
-    ofs << "Lattice=\"" << lattice[0][0] << " 0.0 0.0 0.0 " << lattice[1][1] << " 0.0 0.0 0.0 " << lattice[2][2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"F F F\"" << "\n";
+    ofs << "Lattice=\"" << lattice[0] << " 0.0 0.0 0.0 " << lattice[1] << " 0.0 0.0 0.0 " << lattice[2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"F F F\"" << "\n";
     for (size_t i = 0; i < N; i ++) {
         ofs << species[i] << " "
-            << h_pos[i] + h_box[i] * lattice[0][0] << " " 
-            << h_pos[N + i] + h_box[N + i] * lattice[1][1] << " " 
-            << h_pos[2 * N + i] + h_box[2 * N + i] * lattice[2][2] << " "
+            << h_pos[i] + h_box[i] * lattice[0] << " " 
+            << h_pos[N + i] + h_box[N + i] * lattice[1] << " " 
+            << h_pos[2 * N + i] + h_box[2 * N + i] * lattice[2] << " "
             << h_force[i] << " " << h_force[N + i] << " " << h_force[2 * N + i] << "\n";
     }
 }

@@ -6,6 +6,8 @@
 #include <cub/cub.cuh>
 #include <thrust/binary_search.h>
 
+using Cell = md::Cell;
+
 namespace {
     __global__ void calc_cell_id_kernel(
         bool* flag, 
@@ -16,7 +18,7 @@ namespace {
         const int Mx, 
         const int My, 
         const int Mz, 
-        float* lattice, 
+        Cell cell, 
         const float cell_size_inv_x, 
         const float cell_size_inv_y, 
         const float cell_size_inv_z
@@ -31,9 +33,7 @@ namespace {
         auto pz = pos.z[idx];
 
         // pbc補正
-        px -= lattice[0 * 3 + 0] * floorf(px / lattice[0 * 3 + 0]);
-        py -= lattice[1 * 3 + 1] * floorf(py / lattice[1 * 3 + 1]);
-        pz -= lattice[2 * 3 + 2] * floorf(pz / lattice[2 * 3 + 2]);
+        cell.apply_pbc_wrap_device(&px, &py, &pz);
 
         // セルインデックスの計算
         auto cx = max(0, min(Mx - 1, (int)(px * cell_size_inv_x)));
@@ -89,11 +89,11 @@ using namespace md;
 
 SortedCellList::SortedCellList(std::array<int, 3> _M, Cell* _cell, State& state) : M(_M), cell(_cell) {
     const auto N = state.n_atoms;
-    const std::array<std::array<float, 3>, 3>& lattice = cell->lattice;
+    const auto& lattice = cell->get_lattice();
 
     num_cells = M[0] * M[1] * M[2];
     for (size_t i = 0; i < 3; i ++) {
-        cell_size[i] = (float)(lattice[i][i] / M[i]);
+        cell_size[i] = (float)(lattice[i] / M[i]);
     }
 
     cudaMalloc(&cell_id, N * sizeof(int));
@@ -117,11 +117,6 @@ SortedCellList::SortedCellList(std::array<int, 3> _M, Cell* _cell, State& state)
     );
 
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
-
-    // 最適なスレッド数を計算
-    int minGridSize;
-    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &calc_cell_id_num_threads, calc_cell_id_kernel, 0, 0);
-    cudaOccupancyMaxPotentialBlockSize(&minGridSize, &apply_sort_num_threads, apply_sort_kernel, 0, 0);
 }
 
 SortedCellList::~SortedCellList() {
@@ -139,9 +134,10 @@ SortedCellList::~SortedCellList() {
 void SortedCellList::generate(State& state, bool* flag) {
     auto N = state.n_atoms;
 
-    int num_blocks = (N + calc_cell_id_num_threads - 1) / calc_cell_id_num_threads;
+    int num_threads = 256;
+    int num_blocks = (N + num_threads - 1) / num_threads;
 
-    calc_cell_id_kernel<<<num_blocks, calc_cell_id_num_threads, 0, state.stream>>>(
+    calc_cell_id_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
         flag, 
         state.pos, 
         cell_id, 
@@ -150,7 +146,7 @@ void SortedCellList::generate(State& state, bool* flag) {
         M[0], 
         M[1], 
         M[2], 
-        cell->d_lattice, 
+        *cell, 
         1.0f / cell_size[0], 
         1.0f / cell_size[1], 
         1.0f / cell_size[2]
@@ -161,7 +157,8 @@ void SortedCellList::sort(State& state, bool* flag) {
     auto N = state.n_atoms;
 
     // ソート
-    int num_blocks = (N + apply_sort_num_threads - 1) / apply_sort_num_threads;
+    int num_threads = 256;
+    int num_blocks = (N + num_threads - 1) / num_threads;
 
     check_and_sort_kernel<<<1, 1, 0, state.stream>>>(
         flag, 
@@ -174,7 +171,7 @@ void SortedCellList::sort(State& state, bool* flag) {
         N
     ); 
 
-    apply_sort_kernel<<<num_blocks, apply_sort_num_threads, 0, state.stream>>>(
+    apply_sort_kernel<<<num_blocks, num_threads, 0, state.stream>>>(
         state.pos, 
         sorted_pos, 
         sorted_particle_id, 

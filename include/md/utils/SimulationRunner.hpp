@@ -58,7 +58,6 @@ namespace md::utils {
 
             void configure_units(const nlohmann::json& m_setting);
             void build_state(const nlohmann::json& a_setting);
-            void build_cell(const nlohmann::json& c_setting);
             void build_observer(const nlohmann::json& o_setting);
             void build_ensemble(const nlohmann::json& e_setting);
             void build_interaction(const nlohmann::json& i_setting);

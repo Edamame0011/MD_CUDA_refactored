@@ -24,7 +24,6 @@
 #include <md/thermostats/NoThermostat.cuh>
 #include <md/thermostats/NHC1.cuh>
 #include <md/thermostats/BussiThermostat.cuh>
-#include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/utils/NeighbourList_CLL.cuh>
 #include <md/utils/NeighbourList_uCLL.cuh>
@@ -74,8 +73,6 @@ SimulationRunner::SimulationRunner(const string& setting_path) {
     this->configure_units(m_setting);
     // 系の初期化
     this->build_state(c_setting.at("atoms"));
-    // セルの初期化
-    this->build_cell(c_setting.at("cell"));
     // ポテンシャル・隣接リストの初期化
     this->build_interaction(c_setting.at("interactions"));
 
@@ -177,12 +174,12 @@ void SimulationRunner::build_state(const json& a_setting) {
         if (ratio_vec.size() < 2) throw std::runtime_error("ratioには少なくとも2つの要素が必要です。");
         
         float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
-        this->state = md::utils::initialize::generate_binary_lj(n_atoms, density, this->lattice, a_ratio, mt);
+        this->state = md::utils::initialize::generate_binary_lj(n_atoms, density, this->cell, a_ratio, mt);
 
     } else if (mode == "from_file") {
         string format = a_setting.value("format", "xyz");
         if (format == "xyz") {
-            this->state = md::utils::initialize::read_state_from_xyz(this->lattice, a_setting.at("path"));
+            this->state = md::utils::initialize::read_state_from_xyz(this->cell, a_setting.at("path"));
         } else {
             throw std::runtime_error("未対応のファイルフォーマットです: " + format);
         }
@@ -191,17 +188,6 @@ void SimulationRunner::build_state(const json& a_setting) {
     }
 
     state->current_steps = 0;
-}
-
-void SimulationRunner::build_cell(const json& c_setting) {
-    string c_type = c_setting.value("type", "cubic");
-
-    if (c_type == "cubic") {
-        this->cell = std::make_unique<md::cells::CubicCell>(lattice);
-
-    } else {
-        throw std::runtime_error("未対応のセルタイプです。: " + c_type);
-    }
 }
 
 void SimulationRunner::build_observer(const json& o_setting) {
@@ -366,13 +352,14 @@ void SimulationRunner::build_interaction(const json& i_setting) {
     float margin = n_setting.value("margin", 1.0f);
 
     if (use_cll) {
+        auto lattice = cell->get_lattice();
+        int Mx = std::max(3, (int)(lattice[0] / (cutoff + margin)));
+        int My = std::max(3, (int)(lattice[1] / (cutoff + margin)));
+        int Mz = std::max(3, (int)(lattice[2] / (cutoff + margin)));
+        std::array<int, 3> M = {Mx, My, Mz};
+
         if (use_sort) {
             // cell listの初期化
-            auto lattice = cell->lattice;
-            int Mx = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
-            int My = std::max(3, (int)(lattice[1][1] / (cutoff + margin)));
-            int Mz = std::max(3, (int)(lattice[2][2] / (cutoff + margin)));
-            std::array<int, 3> M = {Mx, My, Mz};
             this->cll = std::make_unique<SortedCellList>(M, cell.get(), *state);
 
             // neighbour listの初期化
@@ -389,11 +376,6 @@ void SimulationRunner::build_interaction(const json& i_setting) {
 
         } else {
             // cell listの初期化
-            auto lattice = cell->lattice;
-            int Mx = std::max(3, (int)(lattice[0][0] / (cutoff + margin)));
-            int My = std::max(3, (int)(lattice[1][1] / (cutoff + margin)));
-            int Mz = std::max(3, (int)(lattice[2][2] / (cutoff + margin)));
-            std::array<int, 3> M = {Mx, My, Mz};
             this->ucll = std::make_unique<UnsortedCellList>(M, cell.get(), *state);
 
             // neighbour listの初期化

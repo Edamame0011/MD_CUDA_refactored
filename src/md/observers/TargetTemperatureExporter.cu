@@ -4,7 +4,6 @@
 #include <md/observers/TrajectoryExporter.cuh>
 #include <md/core/constant.h>
 #include <md/utils/compute.cuh>
-#include <md/cells/CubicCell.cuh>
 
 using namespace md::observers;
 

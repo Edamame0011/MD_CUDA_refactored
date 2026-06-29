@@ -2,6 +2,8 @@
 #include <md/cells/Cell.cuh>
 #include <md/utils/UnsortedCellList.cuh>
 
+using Cell = md::Cell;
+
 namespace {
     __global__ void build_linked_cell_kernel(
         bool* flag, 
@@ -12,7 +14,7 @@ namespace {
         const int Mx, 
         const int My, 
         const int Mz, 
-        float* lattice, 
+        Cell cell, 
         const float cell_size_inv_x, 
         const float cell_size_inv_y, 
         const float cell_size_inv_z
@@ -27,9 +29,7 @@ namespace {
         auto pz = pos.z[idx];
 
         // pbc補正
-        px -= lattice[0 * 3 + 0] * floorf(px / lattice[0 * 3 + 0]);
-        py -= lattice[1 * 3 + 1] * floorf(py / lattice[1 * 3 + 1]);
-        pz -= lattice[2 * 3 + 2] * floorf(pz / lattice[2 * 3 + 2]);
+        cell.apply_pbc_wrap_device(&px, &py, &pz);
 
         // セルインデックスの計算
         auto cx = max(0, min(Mx - 1, (int)(px * cell_size_inv_x)));
@@ -46,11 +46,11 @@ using namespace md;
 
 UnsortedCellList::UnsortedCellList(std::array<int, 3> _M, Cell* _cell, State& state) : M(_M), cell(_cell) {
     const auto N = state.n_atoms;
-    const std::array<std::array<float, 3>, 3>& lattice = cell->lattice;
+    const auto& lattice = cell->get_lattice();
 
     num_cells = M[0] * M[1] * M[2];
     for (size_t i = 0; i < 3; i ++) {
-        cell_size[i] = (float)(lattice[i][i] / M[i]);
+        cell_size[i] = (float)(lattice[i] / M[i]);
     }
 
     // メモリ確保
@@ -80,7 +80,7 @@ void UnsortedCellList::generate(State& state, bool* flag) {
         M[0], 
         M[1], 
         M[2], 
-        cell->d_lattice, 
+        *cell, 
         1.0f / cell_size[0], 
         1.0f / cell_size[1], 
         1.0f / cell_size[2]
