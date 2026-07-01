@@ -12,9 +12,6 @@ find_package(Python3 COMPONENTS Development REQUIRED)
 # include ディレクトリをインクルードパスに追加
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-set(CUSTOM_KERNEL_PATH "/home/nozawa/FlashSchNet/CUDA")
-include_directories(${CUSTOM_KERNEL_PATH})
-
 # libtorchの場所
 set(LIBTORCH_PATH "/home/nozawa/mambaforge/envs/SchNet/lib/python3.11/site-packages/torch")
 set(Torch_DIR "${LIBTORCH_PATH}/share/cmake/Torch")
@@ -40,8 +37,6 @@ endif()
 file(GLOB_RECURSE MD_SOURCES 
     "src/md/*.cpp" 
     "src/md/*.cu"
-    ${CUSTOM_KERNEL_PATH}/*.cu
-    ${CUSTOM_KERNEL_PATH}/*.cpp
 )
 
 # 実行ファイルを作成
@@ -52,7 +47,6 @@ add_executable(MD_MLP
 
 target_include_directories(MD_MLP PRIVATE 
     ${PROJECT_SOURCE_DIR}/include
-    ${CUSTOM_KERNEL_PATH}
     ${Python3_INCLUDE_DIRS}
     ${TORCH_INCLUDE_DIRS}
 #    ${TORCH_TRT_PATH}/include
@@ -64,7 +58,6 @@ target_link_libraries(MD_MLP
 #    onnxruntime
     ${Python3_LIBRARIES} 
     ${TORCH_LIBRARIES} 
-    ${CUDNN_LIBRARY}
     util
 #    torchtrt
 )
