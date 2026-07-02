@@ -144,7 +144,7 @@ stepsは配列になっており、複数のシミュレーションを連続し
     |log_export_trajectory (ログスケール保存)|output_path|string|出力先ファイルパス|
     ||is_unwrap|bool|PBCを展開するか否か|
     ||divisions|int| $10^1$ ステップ毎の分割数|
-    |log_plus_stride_export_trajectory (ログ＋線形間隔保存)|output_path|string|出力先ディレクトリ|
+    |log_plus_stride_export_trajectory (ログ＋線形間隔保存)|output_path|string|出力先ディレクトリ (直下に{i}.xyz)で保存されます。|
     ||is_unwrap|bool|PBCを展開するか否か|
     ||divisions|int| $10^1$ ステップ毎の分割数|
     ||num_trajectory|int|保存するトラジェクトリの数|
