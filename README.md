@@ -107,7 +107,7 @@
 #### NVE: NVEシミュレーション
 - temperature: 初期温度
 
-### NVT: NVTシミュレーション
+#### NVT: NVTシミュレーション
 - thermostat: 熱浴の種類 ("Nose-Hoover" or "Bussi" or "Langevin")  
 
 
