@@ -134,16 +134,18 @@ schedulerの設定値
   - divisions (int): $10^1$ ステップ毎の分割数
 
 ##### トラジェクトリの出力
-- linear_export_trajectory (線形保存)
-  - output_path (string): 出力先ディレクトリ
-  - is_unwrap (bool): PBCを展開するか否か
-  - interval (int): 出力間隔（ステップ数）
-- log_export_trajectory (ログスケール保存)
-  - output_path (string), is_unwrap (bool), divisions (int): $10^1$ ステップ毎の分割数
-- log_plus_stride_export_trajectory (ログ＋線形間隔保存 ※バグの可能性あり)
-  - output_path (string), is_unwrap (bool), divisions (int)
-  - num_trajectory (int): 保存するトラジェクトリの総数
-  - stride (int): 空けるステップ数
+|typeの値|パラメータ名|型|説明|
+|linear_export_trajectory (線形保存)|output_path|string|出力先ファイルパス|
+||is_unwrap|bool|PBCを展開するか否か|
+||interval|int|出力間隔（ステップ数）|
+|log_export_trajectory (ログスケール保存)|output_path|string|出力先ファイルパス|
+||is_unwrap|bool|PBCを展開するか否か|
+||divisions|int| $10^1$ ステップ毎の分割数|
+|log_plus_stride_export_trajectory (ログ＋線形間隔保存 ※バグの可能性あり)|output_path|string|出力先ディレクトリ|
+||is_unwrap|bool|PBCを展開するか否か|
+||divisions|int| $10^1$ ステップ毎の分割数|
+||num_trajectory|int|保存するトラジェクトリの数|
+||stride|int|空けるステップ数|
 
 ##### その他
 - target_temperature_export (特定温度での構造保存)
