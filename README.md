@@ -82,39 +82,24 @@ modeの値によって、必要なパラメータが異なります。
 |from_file (外部ファイル読み込み)|format|string|ファイルフォーマット (現在は"xyz"のみ)|
 ||path|string|読み込むファイルのパス|
 
-
-### common_settings/atoms
-#### generate_binary_lj: バイナリljユニットを作成
-- n_atoms: 粒子数
-- density: 数密度
-- ratio: 粒子Aと粒子Bの割合 (2要素の配列)
-
-#### from_file: ファイルから初期状態を読み込み
-- format: ファイルのフォーマット (現在xyzフォーマットにのみ対応)
-- path: ファイルへのパス
-
-### common_settings/interactions/potentials
-#### lennard_jones: レナード-ジョーンズポテンシャル
-- numbers: 粒子種毎の原子番号 (2要素の配列)
-- sigma: ljパラメータσ (4要素の配列)
-- epsilon: ljパラメータε (4要素の配列)
-- cutoff: カットオフ距離 (4要素の配列)
-
-#### NNP: NNP (TorchScript形式)
-- cutoff: カットオフ距離
-- max_edges: 系全体のエッジ数の上限
-- model_path: モデルのパス
-
-#### NNP_aoti: NNP (aoti形式)
-- cutoff: カットオフ距離
-- max_edges: 系全体のエッジ数の上限
-- model_path: モデルのパス
-
-#### NNP_force_aoti: 力のみを推論するモデルと、エネルギーを推論するモデルが分かれている場合 (aoti形式)
-- cutoff: カットオフ距離
-- max_edges: 系全体のエッジ数の上限
-- force_model_path: 力を推論するモデルのパス
-- energy_model_path: エネルギーを推論するモデルのパス
+#### interactions/potentials  
+typeの値によって、必要なパラメータが異なります。
+|typeの値|パラメータ名|型|説明|
+|---|---|---|---|
+|lennard_jones|numbers|配列|粒子種毎の原子番号（$s$ 要素）|
+||sigma|配列|LJパラメータ $\sigma$（$s^2$ 要素）|
+||epsilon|配列|LJパラメータ $\epsilon$（$s^2$ 要素）|
+||cutoff|配列|カットオフ距離（$s^2$ 要素）|
+|NNP (TorchScript形式)|max_edges|int|系全体のエッジ数の上限|
+||model_path|string|モデルのパス|
+||cutoff|float|カットオフ距離|
+|NNP_aoti (AOT Inductor形式)|max_edges|int|系全体のエッジ数の上限|
+||model_path|string|モデルのパス|
+||cutoff|float|カットオフ距離|
+|NNP_force_aoti (力/エネルギー分離)|max_edges|int|系全体のエッジ数の上限|
+||force_model_path|string|力推論モデルのパス|
+||energy_model_path|string|ポテンシャル推論モデルのパス|
+||cutoff|float|カットオフ距離|
 
 ### steps/simulation/ensemble
 #### NVE: NVEシミュレーション
