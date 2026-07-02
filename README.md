@@ -13,7 +13,7 @@
         }, 
         "interactions": {
             "cell_list": <cell linked-listを用いるか否か (bool)>,
-            "sort": <cell linked-listのインデックスに基づいてソートを行うか否か (bool)>
+            "sort": <cell linked-listのインデックスに基づいてソートを行うか否か (bool)>, 
             "neighbour_list": {
                 "cutoff": <カットオフ距離>, 
                 "margin": <カットオフ距離からのマージン>
