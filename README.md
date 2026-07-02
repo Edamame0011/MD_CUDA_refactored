@@ -104,7 +104,7 @@ typeの値によって、必要なパラメータが異なります。
 ### シミュレーションステップ  
 stepsは配列になっており、複数のシミュレーションを連続して実行できます。
 
-#### simulation/ensemble
+- #### simulation/ensemble
 ##### NVEの場合
 - temperature (float): 初期温度
 
@@ -126,7 +126,7 @@ schedulerの設定値
 - "linear" : 毎ステップ線形に温度を変化させます。
     - rate_per_unit_time (float): 単位時間あたりの温度変化量（昇温は +、降温は -）
 
-#### observer (出力設定)
+- #### observer (出力設定)
 ##### 時間・エネルギー・温度を出力
 - linear: 線形出力
   - interval (int): 出力間隔 (ステップ数)
