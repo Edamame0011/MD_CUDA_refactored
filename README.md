@@ -39,6 +39,10 @@
             "observer": {
                 "type": <出力の種類>, 
                 // typeに応じた設定
+            },
+            "save_last_structure (optional)": {
+                "path": 保存先のパス
+                "is_unwrap": pbcの補正を展開するか否か (bool)
             }
         }, 
 
@@ -58,10 +62,6 @@
                 "type": <出力の種類>, 
                 // typeに応じた設定
             },
-            "save_last_structure (optional)": {
-                "path": 保存先のパス
-                "is_unwrap": pbcの補正を展開するか否か (bool)
-            }
             "step"(optional): <前のシミュレーションのステップ数を引き継ぐかリセットするか ("reset"ならリセット)>
         }, 
 
