@@ -71,35 +71,35 @@
 ```
 
 ### 共通設定 (common_settings)
-#### atoms  
-modeの値によって、必要なパラメータが異なります。
+- #### atoms  
+    modeの値によって、必要なパラメータが異なります。
 
-|modeの値|パラメータ名|型|説明|
-|---|---|---|---|
-|generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数|
-||density|float|数密度|
-||ratio|float[2]|粒子Aと粒子Bの比率|
-|from_file (外部ファイル読み込み)|format|string|ファイルフォーマット (現在は"xyz"のみ)|
-||path|string|読み込むファイルのパス|
+    |modeの値|パラメータ名|型|説明|
+    |---|---|---|---|
+    |generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数|
+    ||density|float|数密度|
+    ||ratio|float[2]|粒子Aと粒子Bの比率|
+    |from_file (外部ファイル読み込み)|format|string|ファイルフォーマット (現在は"xyz"のみ)|
+    ||path|string|読み込むファイルのパス|
 
-#### interactions/potentials  
-typeの値によって、必要なパラメータが異なります。
-|typeの値|パラメータ名|型|説明|
-|---|---|---|---|
-|lennard_jones|numbers|int[]|粒子種毎の原子番号 ( $s$ 要素 )|
-||sigma|float[]|LJパラメータ $\sigma$ ( $s^2$ 要素)|
-||epsilon|float[]|LJパラメータ $\epsilon$ ( $s^2$ 要素)|
-||cutoff|float[]|カットオフ距離 ( $s^2$ 要素)|
-|NNP (TorchScript形式)|max_edges|int|系全体のエッジ数の上限|
-||model_path|string|モデルのパス|
-||cutoff|float|カットオフ距離|
-|NNP_aoti (AOT Inductor形式)|max_edges|int|系全体のエッジ数の上限|
-||model_path|string|モデルのパス|
-||cutoff|float|カットオフ距離|
-|NNP_force_aoti (力/エネルギー分離)|max_edges|int|系全体のエッジ数の上限|
-||force_model_path|string|力推論モデルのパス|
-||energy_model_path|string|ポテンシャル推論モデルのパス|
-||cutoff|float|カットオフ距離|
+- #### interactions/potentials  
+    typeの値によって、必要なパラメータが異なります。
+    |typeの値|パラメータ名|型|説明|
+    |---|---|---|---|
+    |lennard_jones|numbers|int[]|粒子種毎の原子番号 ( $s$ 要素 )|
+    ||sigma|float[]|LJパラメータ $\sigma$ ( $s^2$ 要素)|
+    ||epsilon|float[]|LJパラメータ $\epsilon$ ( $s^2$ 要素)|
+    ||cutoff|float[]|カットオフ距離 ( $s^2$ 要素)|
+    |NNP (TorchScript形式)|max_edges|int|系全体のエッジ数の上限|
+    ||model_path|string|モデルのパス|
+    ||cutoff|float|カットオフ距離|
+    |NNP_aoti (AOT Inductor形式)|max_edges|int|系全体のエッジ数の上限|
+    ||model_path|string|モデルのパス|
+    ||cutoff|float|カットオフ距離|
+    |NNP_force_aoti (力/エネルギー分離)|max_edges|int|系全体のエッジ数の上限|
+    ||force_model_path|string|力推論モデルのパス|
+    ||energy_model_path|string|ポテンシャル推論モデルのパス|
+    ||cutoff|float|カットオフ距離|
 
 ### シミュレーションステップ  
 stepsは配列になっており、複数のシミュレーションを連続して実行できます。
