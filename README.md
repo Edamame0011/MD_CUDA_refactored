@@ -106,7 +106,7 @@ stepsは配列になっており、複数のシミュレーションを連続し
 
 #### simulation/ensemble
 ##### NVEの場合
-- temperature (int): 初期温度
+- temperature (float): 初期温度
 
 ##### NVTの場合
 - thermostat (string): 熱浴の種類
