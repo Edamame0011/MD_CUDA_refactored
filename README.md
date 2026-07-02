@@ -1,3 +1,113 @@
+## configの書き方
+```
+{
+    "meta": {
+        "name": "test_multi_step", 
+        "unit": "lj", 
+        "seed": 12345
+    }, 
+    "common_settings": {
+        "atoms": {
+            "mode": "generate_binary_lj", 
+            "n_atoms": 1000, 
+            "density": 1.2, 
+            "ratio": [0.8, 0.2]
+        }, 
+        "cell" : {
+            "type": "cubic"
+        }, 
+        "interactions": {
+            "cell_list": false, 
+            "neighbour_list": {
+                "cutoff": 2.0, 
+                "margin": 0.7
+            }, 
+            "potentials": {
+                "type": "lennard_jones", 
+                "numbers": [0, 1], 
+                "sigma": [1.0, 0.8, 0.8, 0.88], 
+                "epsilon": [1.0, 1.5, 1.5, 0.5], 
+                "cutoff": [1.5, 2.0, 2.0, 1.5]
+            }
+        }
+    }, 
+    "steps": [
+        {
+            "name": "equilibration run", 
+            "simulation": {
+                "dt": 5e-3, 
+                "simulation_time": 10, 
+                "ensemble": {
+                    "type": "NVT", 
+                    "thermostat": "Bussi", 
+                    "tau": 0.02, 
+                    "seed": 12345, 
+                    "temperature": 2.0, 
+                    "scheduler": "constant"
+                }, 
+                "use_graph": true
+            }, 
+            "observer": {
+                "type": "log", 
+                "divisions": 9
+            }
+        }, 
+
+        {
+            "name": "production run", 
+            "simulation": {
+                "dt": 5e-3, 
+                "simulation_time": 1e+2, 
+                "cell_type": "cubic", 
+                "ensemble": {
+                    "type": "NVT", 
+                    "thermostat": "Bussi", 
+                    "tau": 0.02, 
+                    "seed": 12345, 
+                    "temperature": 2.0, 
+                    "scheduler": "constant"
+                }, 
+                "use_graph": true
+            }, 
+            "observer": {
+                "type": "log", 
+                "divisions": 9
+            }, 
+            "step": "reset"
+        }, 
+
+        {
+            "name": "energy minimization", 
+            "minimize": {
+                "type": "fire", 
+                "checker": {
+                    "type": "max_norm", 
+                    "threshold": 1e-12
+                }, 
+                "params": {
+                    "dt_start": 2e-3, 
+                    "n_max": 5000, 
+                    "t_max": 5.0, 
+                    "t_min": 0.02, 
+                    "n_delay": 20, 
+                    "f_inc": 1.1, 
+                    "f_dec": 0.5, 
+                    "alpha_start": 0.25, 
+                    "f_alpha": 0.99, 
+                    "n_neg_max": 2000, 
+                    "initialdelay": true
+                }
+            }, 
+            "observer": {
+                "type": "log", 
+                "divisions": 9
+            }, 
+            "step": "reset"
+        }
+    ] 
+}
+```
+
 ## Dependencies
 This project uses the following third-party libraries:
 
