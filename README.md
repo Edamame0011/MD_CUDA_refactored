@@ -9,7 +9,7 @@
     "common_settings": {
         "atoms": {
             "mode": <初期配置をどのように作成するか ("generate_binary_lj" or "from_file")>, 
-            <modeに応じた設定>
+            // modeに応じた設定
         }, 
         "interactions": {
             "cell_list": <cell linked-listを用いるか否か (bool)>,
@@ -20,7 +20,7 @@
             }, 
             "potentials": {
                 "type": <用いるポテンシャルの種類>, 
-                <typeに応じた設定>
+                // typeに応じた設定
             }
         }
     }, 
@@ -38,7 +38,7 @@
             }, 
             "observer": {
                 "type": <出力の種類>, 
-                <typeに応じた設定>
+                // typeに応じた設定
             }
         }, 
 
@@ -50,25 +50,34 @@
                 "simulation_time": <シミュレーション時間 (単位系はmeta/unitで設定)>, 
                 "ensemble": {
                     "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
-                    <typeに応じた設定>
+                    // typeに応じた設定
                 }, 
                 "use_graph": <CUDA Graphsを用いるか否か (bool)>
             }, 
             "observer": {
                 "type": <出力の種類>, 
-                <typeに応じた設定>
+                // typeに応じた設定
             },
             "save_last_structure (optional)": {
                 "path": 保存先のパス
                 "is_unwrap": pbcの補正を展開するか否か (bool)
             }
-            "step (optional)": <前のシミュレーションのステップを引き継ぐかリセットするか ("reset"ならリセット)>
+            "step"(optional): <前のシミュレーションのステップを引き継ぐかリセットするか ("reset"ならリセット)>
         }, 
 
         // 必要であれば他のシミュレーション設定
     ] 
 }
 ```
+
+### 共通設定 (common_settings)
+#### atoms  
+modeの値によって、必要なパラメータが異なります。
+
+|modeの値|パラメータ名|型|説明|
+|---|---|---|---|
+|generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数
+
 
 ### common_settings/atoms
 #### generate_binary_lj: バイナリljユニットを作成
