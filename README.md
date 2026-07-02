@@ -111,12 +111,12 @@ stepsは配列になっており、複数のシミュレーションを連続し
 - 各熱浴毎のパラメータ:
 
 
-|パラメータ|Nose-Hoover|Bussi|Langevin|
-|---|---|---|---|
-|tau|○|○|○|
-|temperature|○|○|○|
-|seed|-|○|○|
-|scheduler|○|○|○|
+    |パラメータ|Nose-Hoover|Bussi|Langevin|
+    |---|---|---|---|
+    |tau|○|○|○|
+    |temperature|○|○|○|
+    |seed|-|○|○|
+    |scheduler|○|○|○|
 
 
 schedulerの設定値
