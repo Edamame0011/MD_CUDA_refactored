@@ -14,8 +14,6 @@ LinearExportTrajectory::LinearExportTrajectory(int interval, bool _is_unwrap, St
 
 void LinearExportTrajectory::output(State& state) {
     if (state.current_steps % this->output_interval == 0) {
-        float time = state.dt * state.current_steps;
-        std::cout << time << ", " << std::flush;
         if (is_unwrap) {
             exporter.export_trajectory_unwrap(state);
         } else {
@@ -25,8 +23,6 @@ void LinearExportTrajectory::output(State& state) {
 }
 
 void LinearExportTrajectory::init(State& state) {
-    float time = state.dt * state.current_steps;
-    std::cout << time << ", " << std::flush;
     if (is_unwrap) {
         exporter.export_trajectory_unwrap(state);
     } else {

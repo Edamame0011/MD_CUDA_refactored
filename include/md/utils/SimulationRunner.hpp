@@ -17,6 +17,10 @@ namespace md {
     class Thermostat;
     class ConvChecker;
     class EnergyMinimizer;
+    class SortedCellList;
+    class NeighbourList_CLL;
+    class UnsortedCellList;
+    class NeighbourList_uCLL;
 }
 
 namespace md::utils {
@@ -43,12 +47,17 @@ namespace md::utils {
             std::unique_ptr<ConvChecker> checker;
             std::unique_ptr<EnergyMinimizer> minimizer;
 
+            std::unique_ptr<SortedCellList> cll;
+            std::unique_ptr<NeighbourList_CLL> nl_cll;
+
+            std::unique_ptr<UnsortedCellList> ucll;
+            std::unique_ptr<NeighbourList_uCLL> nl_ucll;
+
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;
 
             void configure_units(const nlohmann::json& m_setting);
             void build_state(const nlohmann::json& a_setting);
-            void build_cell(const nlohmann::json& c_setting);
             void build_observer(const nlohmann::json& o_setting);
             void build_ensemble(const nlohmann::json& e_setting);
             void build_interaction(const nlohmann::json& i_setting);

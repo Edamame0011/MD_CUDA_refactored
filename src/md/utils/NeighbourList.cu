@@ -9,6 +9,7 @@
 #include <thrust/iterator/transform_iterator.h>
 
 using Top2 = md::Top2;
+using Cell = md::Cell;
 
 namespace {
     __global__ void generate_nl(
@@ -20,8 +21,7 @@ namespace {
         int* list, 
         int* count, 
         float cutoff_margin_sq, 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
-        float* lattice
+        Cell cell
     ) {
         if (!*flag) return;
 
@@ -52,7 +52,7 @@ namespace {
                     auto dy = pyi - pyj;
                     auto dz = pzi - pzj;
                     
-                    apply_pbc_ptr(&dx, &dy, &dz, lattice);
+                    cell.apply_pbc_device(&dx, &dy, &dz);
 
                     const auto dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -94,24 +94,21 @@ namespace {
     struct CalcDist {
         dfloat3 pos;
         dfloat3 nl_conf;
-
-        void (*apply_pbc_ptr) (float*, float*, float*, float*);
-        float* lattice;
+        Cell cell;
 
         CalcDist(
             dfloat3 _pos, 
             dfloat3 _nl_conf, 
-            void (*_apply_pbc_ptr) (float*, float*, float*, float*), 
-            float* _lattice
-        ) : pos(_pos), nl_conf(_nl_conf), apply_pbc_ptr(_apply_pbc_ptr), lattice(_lattice) {}
+            Cell _cell
+        ) : pos(_pos), nl_conf(_nl_conf), cell(_cell) {}
 
-        __host__ __device__ Top2 operator () (const int idx) const {
+        __device__ Top2 operator () (const int idx) const {
             auto dx = pos.x[idx] - nl_conf.x[idx];
             auto dy = pos.y[idx] - nl_conf.y[idx];
             auto dz = pos.z[idx] - nl_conf.z[idx];
 
             // PBC補正
-            apply_pbc_ptr(&dx, &dy, &dz, lattice);
+            cell.apply_pbc_device(&dx, &dy, &dz);
 
             float dist_sq = dx * dx + dy * dy + dz * dz;
 
@@ -176,8 +173,7 @@ void NeighbourList::generate(State& state, Cell* cell) {
         this->list, 
         this->count, 
         cutoff_margin_sq, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
 
     cudaMemset(this->flag, 0, sizeof(bool));
@@ -186,8 +182,7 @@ void NeighbourList::generate(State& state, Cell* cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -214,8 +209,7 @@ void NeighbourList::check(State& state, Cell* cell) {
     CalcDist op(
         state.pos, 
         this->nl_conf, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
     thrust::counting_iterator<int> count_itr(0);
     auto trans_itr = thrust::make_transform_iterator(count_itr, op);
@@ -251,8 +245,7 @@ void NeighbourList::check(State& state, Cell* cell) {
         this->list, 
         this->count, 
         cutoff_margin_sq, 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice
+        *cell
     );
 
     cudaMemsetAsync(this->flag, 0, sizeof(bool), state.stream);

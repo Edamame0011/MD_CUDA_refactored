@@ -17,14 +17,18 @@
 #include <md/integrators/ConstantVolume.cuh>
 #include <md/interactions/LJPotential.cuh>
 #include <md/interactions/LJPotential_CLL.cuh>
+#include <md/interactions/LJPotential_uCLL.cuh>
 #include <md/interactions/NNP.cuh>
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/observers/LinearOutput.cuh>
 #include <md/thermostats/NoThermostat.cuh>
 #include <md/thermostats/NHC1.cuh>
 #include <md/thermostats/BussiThermostat.cuh>
-#include <md/cells/CubicCell.cuh>
 #include <md/utils/NeighbourList.cuh>
+#include <md/utils/NeighbourList_CLL.cuh>
+#include <md/utils/NeighbourList_uCLL.cuh>
+#include <md/utils/SortedCellList.cuh>
+#include <md/utils/UnsortedCellList.cuh>
 #include <md/observers/LogOutput.cuh>
 #include <md/temperature_schedulers/TemperatureScheduler.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.cuh>
@@ -34,9 +38,13 @@
 #include <md/observers/LinearExportTrajectory.cuh>
 #include <md/observers/LogExportTrajectory.cuh>
 #include <md/observers/TargetTemperatureExporter.cuh>
+#include <md/observers/LogplusStrideExportTrajectory.cuh>
 #include <md/convergence_checkers/MaxNorm.cuh>
 #include <md/energy_minimizers/FireMinimizer.cuh>
 #include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/observers/TrajectoryExporter.cuh>
+
+#include <cmath>
 
 using namespace md::utils;
 using namespace md;
@@ -47,7 +55,7 @@ using json = nlohmann::json;
 SimulationRunner::SimulationRunner(const string& setting_path) {
     // jsonのロード
     std::ifstream f(setting_path);
-    if (!f.is_open()) throw std::runtime_error("ファイルを開けません。" );
+    if (!f.is_open()) throw std::runtime_error("jsonファイルを開けません。" );
     this->j = json::parse(f);
 
     json m_setting = j.at("meta");
@@ -65,8 +73,6 @@ SimulationRunner::SimulationRunner(const string& setting_path) {
     this->configure_units(m_setting);
     // 系の初期化
     this->build_state(c_setting.at("atoms"));
-    // セルの初期化
-    this->build_cell(c_setting.at("cell"));
     // ポテンシャル・隣接リストの初期化
     this->build_interaction(c_setting.at("interactions"));
 
@@ -88,7 +94,7 @@ void SimulationRunner::run() {
 
             state->dt = s_setting.at("dt");
 
-            if (j.value("step", "") == "reset") {
+            if (step.value("step", "") == "reset") {
                 state->current_steps = 0;
             }
 
@@ -97,7 +103,7 @@ void SimulationRunner::run() {
             // シミュレーターの作成
             Simulator simulator(*state, interaction.get(), integrator.get(), observer.get(), cell.get());
 
-                // 時間の計測
+            // 時間の計測
             auto start = std::chrono::steady_clock::now();
 
             // シミュレーションの実行
@@ -128,6 +134,20 @@ void SimulationRunner::run() {
         } else {
             throw std::runtime_error("stepキーワードが未知です。");
         }
+
+        // シミュレーション終了後の処理
+        if (step.contains("save_last_structure")) {
+            json s = step.at("save_last_structure");
+            std::string output_path = s.at("path").get<std::string>();
+            bool is_unwrap = s.at("is_unwrap").get<bool>();
+
+            md::observers::TrajectoryExporter exporter(*state, output_path, cell.get());
+            if (is_unwrap) {
+                exporter.export_trajectory_unwrap(*state);
+            } else {
+                exporter.export_trajectory(*state);
+            }
+        }
     }
 }
 
@@ -154,12 +174,12 @@ void SimulationRunner::build_state(const json& a_setting) {
         if (ratio_vec.size() < 2) throw std::runtime_error("ratioには少なくとも2つの要素が必要です。");
         
         float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
-        this->state = md::utils::initialize::generate_binary_lj(n_atoms, density, this->lattice, a_ratio, mt);
+        this->state = md::utils::initialize::generate_binary_lj(n_atoms, density, this->cell, a_ratio, mt);
 
     } else if (mode == "from_file") {
         string format = a_setting.value("format", "xyz");
         if (format == "xyz") {
-            this->state = md::utils::initialize::read_state_from_xyz(this->lattice, a_setting.at("path"));
+            this->state = md::utils::initialize::read_state_from_xyz(this->cell, a_setting.at("path"));
         } else {
             throw std::runtime_error("未対応のファイルフォーマットです: " + format);
         }
@@ -168,17 +188,6 @@ void SimulationRunner::build_state(const json& a_setting) {
     }
 
     state->current_steps = 0;
-}
-
-void SimulationRunner::build_cell(const json& c_setting) {
-    string c_type = c_setting.value("type", "cubic");
-
-    if (c_type == "cubic") {
-        this->cell = std::make_unique<md::cells::CubicCell>(lattice);
-
-    } else {
-        throw std::runtime_error("未対応のセルタイプです。: " + c_type);
-    }
 }
 
 void SimulationRunner::build_observer(const json& o_setting) {
@@ -248,6 +257,26 @@ void SimulationRunner::build_observer(const json& o_setting) {
             is_unwrap
         );
 
+    } else if(o_type == "log_plus_stride_export_trajectory") {
+        size_t num_trajectory = o_setting.at("num_trajectory");
+        float stride = o_setting.at("stride");
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        int counter = 5;
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+        string output_path = o_setting.at("output_path").get<string>();
+        
+        this->observer = std::make_unique<md::observers::LogplusStrideExportTrajectory>(
+            num_trajectory, 
+            stride, 
+            log_interval, 
+            counter, 
+            is_unwrap, 
+            *state, 
+            cell.get(), 
+            output_path
+        );
+
     } else {
         throw std::runtime_error("未対応のoutput typeです: " + o_type);
     }
@@ -256,82 +285,115 @@ void SimulationRunner::build_observer(const json& o_setting) {
 void SimulationRunner::build_ensemble(const json& e_setting) {
     string ensemble = e_setting.value("type", "NVE");
 
-        if (ensemble == "NVE") {
-            md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
-            this->thermostat = std::make_unique<md::thermostats::NoThermostat>();
+    if (ensemble == "NVE") {
+        md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
+        this->thermostat = std::make_unique<md::thermostats::NoThermostat>();
+        this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
+
+    } else if (ensemble == "NVT") {
+        md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
+        
+        // Schedulerの構築
+        string sched_type = e_setting.value("scheduler", "constant");
+        if (sched_type == "constant") {
+            this->scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
+
+        } else if (sched_type == "linear") {
+            float rate_per_step = (float)e_setting.at("rate_per_unit_time") * state->dt;
+            this->scheduler = std::make_unique<md::temperature_schedulers::LinearScheduler>(e_setting.at("temperature"), rate_per_step);
+
+        } else {
+            throw std::runtime_error("未対応のschedulerです: " + sched_type);
+        }
+
+        // Thermostatの構築
+        string thermo_type = e_setting.value("thermostat", "Nose-Hoover");
+        if (thermo_type == "Nose-Hoover") {
+            auto nhc = std::make_unique<md::thermostats::NHC1>(
+                e_setting.value("tau", 1.0f), this->scheduler.get()
+            );
+            nhc->init(*state);
+            this->thermostat = std::move(nhc);
             this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
 
-        } else if (ensemble == "NVT") {
-            md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
-            
-            // Schedulerの構築
-            string sched_type = e_setting.value("scheduler", "constant");
-            if (sched_type == "constant") {
-                this->scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
+        } 
+        else if (thermo_type == "Bussi") {
+            float tau = e_setting.value("tau", 1.0f); 
+            int seed = e_setting.value("seed", 12345);
+            auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, this->scheduler.get());
+            bussi->init(*state, seed);
+            this->thermostat = std::move(bussi);
+            this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
 
-            } else if (sched_type == "linear") {
-                float rate_per_step = (float)e_setting.at("rate_per_unit_time") * state->dt;
-                this->scheduler = std::make_unique<md::temperature_schedulers::LinearScheduler>(e_setting.at("temperature"), rate_per_step);
+        } 
+        else if (thermo_type == "Langevin") {
+            float gamma = 1.0f / e_setting.value("tau", 1.0f);
+            int seed = e_setting.value("seed", 12345);
+            auto langevin = std::make_unique<md::integrators::LangevinIntegrator>(gamma, seed, this->scheduler.get());
+            langevin->init(*state, seed);
+            this->integrator = std::move(langevin);
 
-            } else {
-                throw std::runtime_error("未対応のschedulerです: " + sched_type);
-            }
-
-            // Thermostatの構築
-            string thermo_type = e_setting.value("thermostat", "Nose-Hoover");
-            if (thermo_type == "Nose-Hoover") {
-                auto nhc = std::make_unique<md::thermostats::NHC1>(
-                    e_setting.value("tau", 1.0f), this->scheduler.get()
-                );
-                nhc->init(*state);
-                this->thermostat = std::move(nhc);
-                this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
-
-            } 
-            else if (thermo_type == "Bussi") {
-                float tau = e_setting.value("tau", 1.0f); 
-                int seed = e_setting.value("seed", 12345);
-                auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, this->scheduler.get());
-                bussi->init(*state, seed);
-                this->thermostat = std::move(bussi);
-                this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
-
-            } 
-            else if (thermo_type == "Langevin") {
-                float gamma = 1.0f / e_setting.value("tau", 1.0f);
-                int seed = e_setting.value("seed", 12345);
-                auto langevin = std::make_unique<md::integrators::LangevinIntegrator>(gamma, seed, this->scheduler.get());
-                langevin->init(*state, seed);
-                this->integrator = std::move(langevin);
-
-            }
-            else {
-                throw std::runtime_error("未対応のthermostatです: " + thermo_type);
-            }
-            
-        } else {
-            throw std::runtime_error("未対応のensembleです: " + ensemble);
         }
+        else {
+            throw std::runtime_error("未対応のthermostatです: " + thermo_type);
+        }
+        
+    } else {
+        throw std::runtime_error("未対応のensembleです: " + ensemble);
+    }
 }
 
 void SimulationRunner::build_interaction(const json& i_setting) {
     bool use_cll = i_setting.value("cell_list", false);
+    bool use_sort = i_setting.value("sort", false);
+
+    json n_setting = i_setting.at("neighbour_list");
+    float cutoff = n_setting.value("cutoff", 5.0f);
+    float margin = n_setting.value("margin", 1.0f);
 
     if (use_cll) {
-        /*
-        if (p_type == "lennard_jones") {
-            this->interaction = md::utils::initialize::init_LJPotential_CLL_from_json(p_setting, *state, cell.get(), nl.get());
-        } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
-        */
+        auto lattice = cell->get_lattice();
+        int Mx = std::max(3, (int)(lattice[0] / (cutoff + margin)));
+        int My = std::max(3, (int)(lattice[1] / (cutoff + margin)));
+        int Mz = std::max(3, (int)(lattice[2] / (cutoff + margin)));
+        std::array<int, 3> M = {Mx, My, Mz};
 
-        throw std::runtime_error("セルリスト法にはまだ未対応です。(実装はありますがSimulationRunner側が対応していないです。そのうち対応します。)");
+        if (use_sort) {
+            // cell listの初期化
+            this->cll = std::make_unique<SortedCellList>(M, cell.get(), *state);
+
+            // neighbour listの初期化
+            this->nl_cll = std::make_unique<NeighbourList_CLL>(*state, cutoff, margin, *cll);
+            nl_cll->generate(*state, cell.get());
+
+            // potantialの初期化
+            json p_setting = i_setting.at("potentials");
+            string p_type = p_setting.value("type", "lennard_jones");
+
+            if (p_type == "lennard_jones") {
+                this->interaction = md::utils::initialize::init_LJPotential_CLL_from_json(p_setting, *state, cell.get(), nl_cll.get());
+            } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+
+        } else {
+            // cell listの初期化
+            this->ucll = std::make_unique<UnsortedCellList>(M, cell.get(), *state);
+
+            // neighbour listの初期化
+            this->nl_ucll = std::make_unique<NeighbourList_uCLL>(*state, cutoff, margin, *ucll);
+            nl_ucll->generate(*state, cell.get());
+
+            // potantialの初期化
+            json p_setting = i_setting.at("potentials");
+            string p_type = p_setting.value("type", "lennard_jones");
+
+            if (p_type == "lennard_jones") {
+                this->interaction = md::utils::initialize::init_LJPotential_uCLL_from_json(p_setting, *state, cell.get(), nl_ucll.get());
+            } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+
+        }
 
     } else {
         // neighbour listの初期化
-        json n_setting = i_setting.at("neighbour_list");
-        float cutoff = n_setting.value("cutoff", 5.0f);
-        float margin = n_setting.value("margin", 1.0f);
-
         this->nl = std::make_unique<NeighbourList>(*state, cutoff, margin);
         nl->generate(*state, cell.get());
 

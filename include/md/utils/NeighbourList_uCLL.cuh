@@ -3,14 +3,14 @@
 #include <md/core/State.cuh>
 
 namespace md {
-    class SortedCellList;
+    class UnsortedCellList;
     class Top2;
     class Cell;
 
-    class NeighbourList_CLL {
+    class NeighbourList_uCLL {
         public:
-            NeighbourList_CLL(State& state, float _cutoff, float _margin, SortedCellList& _cll);
-            ~NeighbourList_CLL();
+            NeighbourList_uCLL(State& state, float _cutoff, float _margin, UnsortedCellList& _cll);
+            ~NeighbourList_uCLL();
 
             void generate(State& state, Cell* cell);
             void check(State& state, Cell* cell);
@@ -18,12 +18,12 @@ namespace md {
             int* get_list() { return this->list; }
             int* get_count() { return this->count; }
             int get_max_neighbours() { return this->max_neighbours; }
-            SortedCellList& get_cell_list() { return this->cll; }
+            UnsortedCellList& get_cell_list() { return this->cll; }
 
-            NeighbourList_CLL(const NeighbourList_CLL&) = delete;
-            NeighbourList_CLL& operator=(const NeighbourList_CLL&) = delete;
+            NeighbourList_uCLL(const NeighbourList_uCLL&) = delete;
+            NeighbourList_uCLL& operator=(const NeighbourList_uCLL&) = delete;
         private:
-            SortedCellList& cll;
+            UnsortedCellList& cll;
 
             float cutoff, margin;
             float Lbox;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <md/interactions/Interaction.cuh>
-#include <torch/script.h>
+#include <torch/csrc/inductor/aoti_package/model_package_loader.h>
 #include <torch/torch.h>
 #include <string>
 
@@ -26,9 +26,10 @@ namespace md::interactions {
             const int num_max_edges;
             int num_edges;
 
-            torch::jit::script::Module model;
-            NeighbourList* nl;
-            Cell* cell;
+            torch::inductor::AOTIModelPackageLoader loader;
+
+            NeighbourList* nl = nullptr;
+            Cell* cell = nullptr;
 
             float cutoff;
 
@@ -36,15 +37,12 @@ namespace md::interactions {
 
             // グラフ構造の本体
             int64_t* x_ptr = nullptr;   // (N, )
-            int64_t* edge_index_ptr = nullptr;  // (num_edges, )
-            int64_t* offsets_ptr = nullptr; // (N + 1, )
+            int32_t* edge_index_ptr = nullptr;  // (num_edges, )
+            int32_t* offsets_ptr = nullptr; // (N + 1, )
             float* edge_weight_ptr = nullptr;
 
             // torch::Tensor型のラッパー
-            torch::Tensor x;
-            torch::Tensor edge_index;
-            torch::Tensor edge_weight;
-            torch::Tensor offsets;
+            std::vector<torch::Tensor> inputs;
 
             // cub用のバッファ
             void* d_temp_storage = nullptr;

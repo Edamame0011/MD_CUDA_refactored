@@ -9,14 +9,15 @@
 
 // #include <torch_tensorrt/torch_tensorrt.h>
 
+using Cell = md::Cell;
+
 namespace {
     __global__ void count_pairs_kernel(
         dfloat3 pos, 
         int* __restrict__ counts, 
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
-        float* lattice, 
+        Cell cell, 
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours
@@ -42,7 +43,7 @@ namespace {
             float dy = pyi - pyj;
             float dz = pzi - pzj;
         
-            apply_pbc_ptr(&dx, &dy, &dz, lattice);
+            cell.apply_pbc_device(&dx, &dy, &dz);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             
@@ -60,8 +61,7 @@ namespace {
         const int* __restrict__ offsets,
         const int* __restrict__ list, 
         const int* __restrict__ count, 
-        void (*apply_pbc_ptr) (float*, float*, float*, float*), 
-        float* lattice, 
+        Cell cell, 
         const float cutoff, 
         const int num_atoms, 
         const int max_neighbours, 
@@ -89,7 +89,7 @@ namespace {
             float dy = pyj - pyi;
             float dz = pzj - pzi;
         
-            apply_pbc_ptr(&dx, &dy, &dz, lattice);
+            cell.apply_pbc_device(&dx, &dy, &dz);
     
             const float dist_sq = dx * dx + dy * dy + dz * dz;
             
@@ -165,8 +165,7 @@ void NNP_aoti::create_graph(State& state) {
         counts, 
         nl->get_list(), 
         nl->get_count(), 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice, 
+        *cell, 
         cutoff, 
         N, 
         nl->get_max_neighbours()
@@ -196,8 +195,7 @@ void NNP_aoti::create_graph(State& state) {
         offsets, 
         nl->get_list(), 
         nl->get_count(), 
-        cell->apply_pbc_ptr, 
-        cell->d_lattice, 
+        *cell, 
         cutoff, 
         N, 
         nl->get_max_neighbours(), 

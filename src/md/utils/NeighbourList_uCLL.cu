@@ -1,9 +1,9 @@
-#include <md/utils/NeighbourList_CLL.cuh>
+#include <md/utils/NeighbourList_uCLL.cuh>
 
 #include <md/core/State.cuh>
 #include <md/utils/NeighbourList.cuh>
 #include <md/cells/Cell.cuh>
-#include <md/utils/SortedCellList.cuh>
+#include <md/utils/UnsortedCellList.cuh>
 
 #include <cub/cub.cuh>
 #include <thrust/iterator/counting_iterator.h>
@@ -15,16 +15,19 @@ using Cell = md::Cell;
 namespace {
     __global__ void generate_nl_kernel(
         const bool* __restrict__ flag, 
-        const dfloat3 sorted_pos, 
+        const dfloat3 pos, 
         const int num_atoms, 
         const int max_neighbours, 
         const int Mx, 
         const int My, 
         const int Mz, 
+        const float cell_size_inv_x, 
+        const float cell_size_inv_y, 
+        const float cell_size_inv_z, 
         int* __restrict__ list, 
         int* __restrict__ count, 
-        const int* __restrict__ cell_id, 
-        const int* __restrict__ cell_start_idx, 
+        const int* __restrict__ head, 
+        const int* __restrict__ next, 
         const float cutoff_margin_sq, 
         Cell cell
     ) { 
@@ -33,18 +36,22 @@ namespace {
         int idx = threadIdx.x + blockDim.x * blockIdx.x;
         if (idx >= num_atoms) return;
 
-        auto cid = cell_id[idx];
-
-        auto pxi = sorted_pos.x[idx];
-        auto pyi = sorted_pos.y[idx];
-        auto pzi = sorted_pos.z[idx];
-
-        int c = 0;
+        auto pxi = pos.x[idx];
+        auto pyi = pos.y[idx];
+        auto pzi = pos.z[idx];
 
         // 自身の属するセルと隣接するセル内の隣接粒子を計算
-        int cx = cid % Mx;
-        int cy  = (cid / Mx) % My;
-        int cz = cid / (Mx * My);
+        float px = pxi;
+        float py = pyi;
+        float pz = pzi;
+
+        cell.apply_pbc_wrap_device(&px, &py, &pz);
+
+        int cx = max(0, min(Mx - 1, (int)(px * cell_size_inv_x)));
+        int cy = max(0, min(My - 1, (int)(py * cell_size_inv_y)));
+        int cz = max(0, min(Mz - 1, (int)(pz * cell_size_inv_z)));
+
+        int c = 0;
 
         for (int dz = -1; dz <= 1; dz ++) {
             for (int dy = -1; dy <= 1; dy ++) {
@@ -54,26 +61,27 @@ namespace {
                     int jz = (cz + dz + Mz) % Mz;
                     int jcell = jx + jy * Mx + jz * Mx * My;
 
-                    int start_idx = cell_start_idx[jcell];
-                    int end_idx = cell_start_idx[jcell + 1];
-                    for (int j = start_idx; j < end_idx; j ++) {
-                        if (idx == j) continue;
-                        auto pxj = sorted_pos.x[j];
-                        auto pyj = sorted_pos.y[j];
-                        auto pzj = sorted_pos.z[j];
-                    
-                        auto dx_pos = pxi - pxj;
-                        auto dy_pos = pyi - pyj;
-                        auto dz_pos = pzi - pzj;
-                    
-                        cell.apply_pbc_device(&dx_pos, &dy_pos, &dz_pos);
-                    
-                        const auto dist_sq = dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos;
-                    
-                        if (dist_sq < cutoff_margin_sq) {
-                            list[idx * max_neighbours + c] = j;
-                            c ++; 
+                    int j = head[jcell];
+                    while (j != -1) {
+                        if (idx != j) {
+                            auto pxj = pos.x[j];
+                            auto pyj = pos.y[j];
+                            auto pzj = pos.z[j];
+                        
+                            auto dx_pos = pxi - pxj;
+                            auto dy_pos = pyi - pyj;
+                            auto dz_pos = pzi - pzj;
+                        
+                            cell.apply_pbc_device(&dx_pos, &dy_pos, &dz_pos);
+
+                            const auto dist_sq = dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos;
+                        
+                            if (dist_sq < cutoff_margin_sq) {
+                                list[idx * max_neighbours + c] = j;
+                                c ++; 
+                            }
                         }
+                        j = next[j];
                     }
                 }
             }
@@ -146,7 +154,7 @@ namespace {
 
 using namespace md;
 
-NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin, SortedCellList& _cll) : cutoff(_cutoff), margin(_margin), cll(_cll) {
+NeighbourList_uCLL::NeighbourList_uCLL(State& state, float _cutoff, float _margin, UnsortedCellList& _cll) : cutoff(_cutoff), margin(_margin), cll(_cll) {
     auto N = state.n_atoms;
     this->max_neighbours = 1000;
     cudaMalloc(&this->list, (size_t)N * max_neighbours * sizeof(int));
@@ -163,7 +171,7 @@ NeighbourList_CLL::NeighbourList_CLL(State& state, float _cutoff, float _margin,
     cudaOccupancyMaxPotentialBlockSize(&minGridSize, &update_nl_conf_num_threads, update_nl_conf_kernel, 0, 0);
 }
 
-NeighbourList_CLL::~NeighbourList_CLL() {
+NeighbourList_uCLL::~NeighbourList_uCLL() {
     cudaFree(this->list);
     cudaFree(this->count);
     cudaFree(this->nl_conf.x);
@@ -174,14 +182,13 @@ NeighbourList_CLL::~NeighbourList_CLL() {
     cudaFree(this->d_temp_storage);
 }
 
-void NeighbourList_CLL::generate(State& state, Cell* cell) {
+void NeighbourList_uCLL::generate(State& state, Cell* cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
     // cllの作成
     cll.generate(state, flag);
-    cll.sort(state, flag);
 
     // NLの作成
     int generate_nl_num_blocks = (N + generate_nl_num_threads - 1) / generate_nl_num_threads;
@@ -189,16 +196,19 @@ void NeighbourList_CLL::generate(State& state, Cell* cell) {
 
     generate_nl_kernel<<<generate_nl_num_blocks, generate_nl_num_threads>>>(
         flag, 
-        cll.get_sorted_pos(), 
+        state.pos, 
         N, 
         max_neighbours, 
         cll.get_M()[0], 
         cll.get_M()[1], 
         cll.get_M()[2], 
+        1.0f / cll.get_cell_size()[0], 
+        1.0f / cll.get_cell_size()[1], 
+        1.0f / cll.get_cell_size()[2],  
         list, 
         count, 
-        cll.get_cell_id(), 
-        cll.get_cell_start_idx(), 
+        cll.get_head(), 
+        cll.get_next(), 
         cutoff_margin_sq, 
         *cell
     );
@@ -234,7 +244,7 @@ void NeighbourList_CLL::generate(State& state, Cell* cell) {
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 }
 
-void NeighbourList_CLL::check(State& state, Cell* cell) {
+void NeighbourList_uCLL::check(State& state, Cell* cell) {
     auto N = state.n_atoms;
     auto cutoff_margin = cutoff + margin;
     auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
@@ -267,23 +277,25 @@ void NeighbourList_CLL::check(State& state, Cell* cell) {
     );
 
     cll.generate(state, flag);
-    cll.sort(state, flag);
 
     int generate_nl_num_blocks = (N + generate_nl_num_threads - 1) / generate_nl_num_threads;
     int update_nl_conf_num_blocks = (N + update_nl_conf_num_threads - 1) / update_nl_conf_num_threads;
 
     generate_nl_kernel<<<generate_nl_num_blocks, generate_nl_num_threads, 0, state.stream>>>(
         flag, 
-        cll.get_sorted_pos(), 
+        state.pos, 
         N, 
         max_neighbours, 
         cll.get_M()[0], 
         cll.get_M()[1], 
         cll.get_M()[2], 
+        1.0f / cll.get_cell_size()[0], 
+        1.0f / cll.get_cell_size()[1], 
+        1.0f / cll.get_cell_size()[2],  
         list, 
         count, 
-        cll.get_cell_id(), 
-        cll.get_cell_start_idx(), 
+        cll.get_head(), 
+        cll.get_next(), 
         cutoff_margin_sq, 
         *cell
     );

@@ -175,8 +175,8 @@ void FireMinimizer::run() {
     for (int i = 0; i < n_max; i ++) {
         float p = thrust::transform_reduce(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(N), 
+            thrust::make_counting_iterator<size_t>(0), 
+            thrust::make_counting_iterator<size_t>(N), 
             CalcDot(
                 state.vel, 
                 state.force
@@ -201,8 +201,8 @@ void FireMinimizer::run() {
             }
             thrust::for_each(
                 thrust::device, 
-                thrust::make_counting_iterator(0),  
-                thrust::make_counting_iterator(N), 
+                thrust::make_counting_iterator<size_t>(0),  
+                thrust::make_counting_iterator<size_t>(N), 
                 Correct(
                     state.pos, 
                     state.vel, 
@@ -215,8 +215,8 @@ void FireMinimizer::run() {
 
         thrust::for_each(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(N), 
+            thrust::make_counting_iterator<int>(0), 
+            thrust::make_counting_iterator<int>(N), 
             IntegrateStepOne(
                 state.pos, 
                 state.vel, 
@@ -231,8 +231,8 @@ void FireMinimizer::run() {
         interaction->calc_force(state);
         thrust::for_each(
             thrust::device, 
-            thrust::make_counting_iterator(0), 
-            thrust::make_counting_iterator(state.n_atoms), 
+            thrust::make_counting_iterator<int>(0), 
+            thrust::make_counting_iterator<int>(state.n_atoms), 
             IntegrateStepTwo(
                 state.vel, 
                 state.force, 

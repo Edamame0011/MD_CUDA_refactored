@@ -22,8 +22,8 @@ bool MaxNorm::check(State& state) {
     auto N = state.n_atoms;
     float max2 = thrust::transform_reduce(
         thrust::device, 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(N), 
+        thrust::make_counting_iterator<int>(0), 
+        thrust::make_counting_iterator<int>(N), 
         CalcSquaredNorm(state.force), 
         0.0f, 
         thrust::maximum<float>()

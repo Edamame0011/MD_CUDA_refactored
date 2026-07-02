@@ -1,14 +1,15 @@
 {
     "meta": {
         "name": "test_multi_step", 
-        "unit": "metal", 
+        "unit": "lj", 
         "seed": 12345
     }, 
     "common_settings": {
         "atoms": {
-            "mode": "from_file", 
-            "format": "xyz", 
-            "path": "./data/sample_NS2.xyz"
+            "mode": "generate_binary_lj", 
+            "n_atoms": 1000, 
+            "density": 1.2, 
+            "ratio": [0.8, 0.2]
         }, 
         "cell" : {
             "type": "cubic"
@@ -16,14 +17,15 @@
         "interactions": {
             "cell_list": false, 
             "neighbour_list": {
-                "cutoff": 5.0, 
-                "margin": 1.0
+                "cutoff": 2.0, 
+                "margin": 0.7
             }, 
             "potentials": {
-                "type": "NNP_aoti", 
-                "cutoff": 5.0, 
-                "max_edges": 70000, 
-                "model_path": "./model/model_schnet_Na2O-SiO2_aoti.pt2"
+                "type": "lennard_jones", 
+                "numbers": [0, 1], 
+                "sigma": [1.0, 0.8, 0.8, 0.88], 
+                "epsilon": [1.0, 1.5, 1.5, 0.5], 
+                "cutoff": [1.5, 2.0, 2.0, 1.5]
             }
         }
     }, 
@@ -31,8 +33,8 @@
         {
             "name": "equilibration run", 
             "simulation": {
-                "dt": 0.5, 
-                "simulation_time": 5e+3, 
+                "dt": 5e-3, 
+                "simulation_time": 1e+2, 
                 "ensemble": {
                     "type": "NVT", 
                     "thermostat": "Bussi", 
@@ -41,7 +43,7 @@
                     "temperature": 2.0, 
                     "scheduler": "constant"
                 }, 
-                "use_graph": false
+                "use_graph": true
             }, 
             "observer": {
                 "type": "log", 
@@ -51,17 +53,21 @@
         {
             "name": "production run", 
             "simulation": {
-                "dt": 0.5, 
+                "dt": 5e-3, 
                 "simulation_time": 5e+3, 
                 "cell_type": "cubic", 
                 "ensemble": {
                     "type": "NVE", 
                     "temperature": 2.0
                 }, 
-                "use_graph": false
+                "use_graph": true
             }, 
             "observer": {
-                "type": "log", 
+                "type": "log_plus_stride_export_trajectory", 
+                "num_trajectory": 10, 
+                "stride": 100, 
+                "is_unwrap": true, 
+                "output_path": "./outputs/trajectory/test_LJ", 
                 "divisions": 9
             }, 
             "step": "reset"

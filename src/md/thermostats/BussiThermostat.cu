@@ -29,7 +29,7 @@ namespace {
             v = v * v * v;
             u = curand_uniform(state);
             x_sq = x * x;
-            if (u < 1.0f - 0.0331f * x_sq * x_sq || logf(u) < 0.5f * x_sq + d * (1.0f - v + logf(v))) {
+            if (u < 1.0f - 0.0331f * x_sq * x_sq || __logf(u) < 0.5f * x_sq + d * (1.0f - v + __logf(v))) {
                 return d * v * theta;
             }
         }
@@ -49,7 +49,7 @@ namespace {
         float r2 = curand_normal(state);
         float g = generate_gamma(state, (dof - 2.0f) / 2.0f, 1.0f);
         float current_kin = *kinetic_energy;
-        float f = expf(-dt * tau_inv);
+        float f = __expf(-dt * tau_inv);
         float alpha2 = f + (targ_kin * (1.0f - f) * (r1 * r1 + r2 * r2 + 2 * g)) / (dof * current_kin) + 2.0f * r1 * sqrtf((targ_kin * f * (1.0f - f)) / (dof * current_kin));
 
         *scaling_factor = sqrtf(alpha2);
@@ -105,8 +105,8 @@ void BussiThermostat::stepTwo(State& state) {
     // スケーリング
     thrust::for_each(
         thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
+        thrust::make_counting_iterator<size_t>(0), 
+        thrust::make_counting_iterator<size_t>(state.n_atoms), 
         Scaling(
             state.vel, 
             this->scaling_factor

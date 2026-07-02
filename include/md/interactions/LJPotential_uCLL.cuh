@@ -1,10 +1,12 @@
 #pragma once
 
 #include <md/interactions/Interaction.cuh>
+#include <md/core/State.cuh>
+#include <md/interactions/LJPotential.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
-#include <md/interactions/LJPotential.cuh>
 
 #include <external/nlohmann/json.hpp>
 #include <algorithm>
@@ -12,47 +14,41 @@
 #include <string>
 
 namespace md {
-    class NeighbourList_CLL;
     class Cell;
+    class NeighbourList_uCLL;
 }
 
 namespace md::interactions {
-    class LJPotential_CLL : public Interaction {
+    class LJPotential_uCLL : public Interaction {
         public: 
-            LJPotential_CLL(
-                int _num_atoms, 
+            LJPotential_uCLL(
                 int _num_species, 
                 Cell* _cell, 
-                NeighbourList_CLL *_nl, 
+                NeighbourList_uCLL *_NL, 
                 std::vector<float> _sigma, 
                 std::vector<float> _epsilon, 
                 std::vector<float> _cutoff, 
                 std::vector<int> _identifier
             );
-            ~LJPotential_CLL();
+            ~LJPotential_uCLL();
 
             void calc_force(State& state) override;
             void calc_potential(State& state) override;
 
         private: 
             int num_species;
-            int* original_identifier;
             lj_params params;
             
             Cell* cell;
-            NeighbourList_CLL *nl;
-
-            dfloat3 force_buffer;
+            NeighbourList_uCLL *nl;
 
             // カーネル起動スレッド数
             int calc_force_num_threads;
-            int apply_sort_num_threads;
-            int apply_forward_sort_num_threads;
     };
 }
 
 namespace md::utils::initialize {
-    inline std::unique_ptr<md::interactions::LJPotential_CLL> init_LJPotential_CLL_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList_CLL *NL) {
+    inline std::unique_ptr<md::interactions::LJPotential_uCLL> init_LJPotential_uCLL_from_json(const nlohmann::json& json, State &state, Cell* cell, NeighbourList_uCLL* NL) {
         // データの読み込み
         std::vector<float> sigma = json.at("sigma").get<std::vector<float>>();
         std::vector<float> epsilon = json.at("epsilon").get<std::vector<float>>();
@@ -81,6 +77,6 @@ namespace md::utils::initialize {
             identifier.push_back(lut[num]);
         }
 
-        return std::make_unique<md::interactions::LJPotential_CLL>(N, num_species, cell, NL, sigma, epsilon, cutoff, identifier);
+        return std::make_unique<md::interactions::LJPotential_uCLL>(num_species, cell, NL, sigma, epsilon, cutoff, identifier);
     }
 }

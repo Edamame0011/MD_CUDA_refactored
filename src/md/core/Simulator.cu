@@ -8,17 +8,16 @@
 
 using namespace md;
 
-void Simulator::run(float tsim, bool use_cuda_graphs)  {
-    if (use_cuda_graphs) {
+void Simulator::run(float tsim, int loop_per_graph)  {
+    if (loop_per_graph > 0) {
         // CUDA Graphsによる最適化のために必要な変数
         cudaGraph_t graph;
         cudaGraphExec_t instance;
 
         // 録画の開始
         // 複数回のループを一つのグラフとして記録する。
-        constexpr int num_loop_per_graph = 100;
         cudaStreamBeginCapture(state.stream, cudaStreamCaptureModeGlobal);
-        for (int i = 0; i < num_loop_per_graph; i ++) {
+        for (int i = 0; i < loop_per_graph; i ++) {
             integrator->integrateStepOne(state);
             cell->apply_pbc(state);
             interaction->calc_force(state);
@@ -41,7 +40,7 @@ void Simulator::run(float tsim, bool use_cuda_graphs)  {
         // メインループ
         while (state.current_steps < total_steps) {  
             cudaGraphLaunch(instance, state.stream);
-            state.current_steps += num_loop_per_graph;
+            state.current_steps += loop_per_graph;
             observer->output(state);
         }
 
