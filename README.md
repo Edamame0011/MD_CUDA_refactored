@@ -78,7 +78,7 @@ modeの値によって、必要なパラメータが異なります。
 |---|---|---|---|
 |generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数|
 ||density|float|数密度|
-||ratio|配列|粒子Aと粒子Bの比率|
+||ratio|float[2]|粒子Aと粒子Bの比率|
 |from_file (外部ファイル読み込み)|format|string|ファイルフォーマット (現在は"xyz"のみ)|
 ||path|string|読み込むファイルのパス|
 
@@ -86,10 +86,10 @@ modeの値によって、必要なパラメータが異なります。
 typeの値によって、必要なパラメータが異なります。
 |typeの値|パラメータ名|型|説明|
 |---|---|---|---|
-|lennard_jones|numbers|配列|粒子種毎の原子番号（ $s$ 要素）|
-||sigma|配列|LJパラメータ $\sigma$（ $s^2$ 要素）|
-||epsilon|配列|LJパラメータ $\epsilon$（ $s^2$ 要素）|
-||cutoff|配列|カットオフ距離（ $s^2$ 要素）|
+|lennard_jones|numbers|int[ $s$ ]|粒子種毎の原子番号|
+||sigma|float[ $s*s$ ]|LJパラメータ $\sigma$ |
+||epsilon|float[ $s*s$ ]|LJパラメータ $\epsilon$ |
+||cutoff|float[ $s*s$ ]|カットオフ距離 |
 |NNP (TorchScript形式)|max_edges|int|系全体のエッジ数の上限|
 ||model_path|string|モデルのパス|
 ||cutoff|float|カットオフ距離|
