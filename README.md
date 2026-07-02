@@ -41,8 +41,8 @@
                 // typeに応じた設定
             },
             "save_last_structure (optional)": {
-                "path": 保存先のパス
-                "is_unwrap": pbcの補正を展開するか否か (bool)
+                "path": <保存先のパス>
+                "is_unwrap": <pbcの補正を展開するか否か (bool)>
             }
         }, 
 
