@@ -105,58 +105,58 @@ typeの値によって、必要なパラメータが異なります。
 stepsは配列になっており、複数のシミュレーションを連続して実行できます。
 
 - #### simulation/ensemble
-##### NVEの場合
-- temperature (float): 初期温度
+    ##### NVEの場合
+    - temperature (float): 初期温度
 
-##### NVTの場合
-- thermostat (string): 熱浴の種類
-- 各熱浴毎のパラメータ:
-
-
-    |パラメータ|Nose-Hoover|Bussi|Langevin|
-    |---|---|---|---|
-    |tau|○|○|○|
-    |temperature|○|○|○|
-    |seed|-|○|○|
-    |scheduler|○|○|○|
+    ##### NVTの場合
+    - thermostat (string): 熱浴の種類
+    - 各熱浴毎のパラメータ:
 
 
-schedulerの設定値
-- "constant": 一定温度でシミュレーションを行います。
-- "linear" : 毎ステップ線形に温度を変化させます。
-    - rate_per_unit_time (float): 単位時間あたりの温度変化量（昇温は +、降温は -）
+        |パラメータ|Nose-Hoover|Bussi|Langevin|
+        |---|---|---|---|
+        |tau|○|○|○|
+        |temperature|○|○|○|
+        |seed|-|○|○|
+        |scheduler|○|○|○|
+
+
+    schedulerの設定値
+    - "constant": 一定温度でシミュレーションを行います。
+    - "linear" : 毎ステップ線形に温度を変化させます。
+        - rate_per_unit_time (float): 単位時間あたりの温度変化量（昇温は +、降温は -）
 
 - #### observer (出力設定)
-##### 時間・エネルギー・温度を出力
-- linear: 線形出力
-  - interval (int): 出力間隔 (ステップ数)
-- log: ログスケール出力
-  - divisions (int): $10^1$ ステップ毎の分割数
+    ##### 時間・エネルギー・温度を出力
+    - linear: 線形出力
+      - interval (int): 出力間隔 (ステップ数)
+    - log: ログスケール出力
+      - divisions (int): $10^1$ ステップ毎の分割数
 
-##### トラジェクトリの出力
-typeの値によって、必要なパラメータが異なります。
+    ##### トラジェクトリの出力
+    typeの値によって、必要なパラメータが異なります。
 
-|typeの値|パラメータ名|型|説明|
-|---|---|---|---|
-|linear_export_trajectory (線形保存)|output_path|string|出力先ファイルパス|
-||is_unwrap|bool|PBCを展開するか否か|
-||interval|int|出力間隔（ステップ数）|
-|log_export_trajectory (ログスケール保存)|output_path|string|出力先ファイルパス|
-||is_unwrap|bool|PBCを展開するか否か|
-||divisions|int| $10^1$ ステップ毎の分割数|
-|log_plus_stride_export_trajectory (ログ＋線形間隔保存)|output_path|string|出力先ディレクトリ|
-||is_unwrap|bool|PBCを展開するか否か|
-||divisions|int| $10^1$ ステップ毎の分割数|
-||num_trajectory|int|保存するトラジェクトリの数|
-||stride|int|空けるステップ数|
+    |typeの値|パラメータ名|型|説明|
+    |---|---|---|---|
+    |linear_export_trajectory (線形保存)|output_path|string|出力先ファイルパス|
+    ||is_unwrap|bool|PBCを展開するか否か|
+    ||interval|int|出力間隔（ステップ数）|
+    |log_export_trajectory (ログスケール保存)|output_path|string|出力先ファイルパス|
+    ||is_unwrap|bool|PBCを展開するか否か|
+    ||divisions|int| $10^1$ ステップ毎の分割数|
+    |log_plus_stride_export_trajectory (ログ＋線形間隔保存)|output_path|string|出力先ディレクトリ|
+    ||is_unwrap|bool|PBCを展開するか否か|
+    ||divisions|int| $10^1$ ステップ毎の分割数|
+    ||num_trajectory|int|保存するトラジェクトリの数|
+    ||stride|int|空けるステップ数|
 
-##### その他
-- target_temperature_export (特定温度での構造保存)
-  - target_temperatures (float[]): 出力したい温度のリスト（必ず高温から降順で指定）
-  - output_path (string): 保存先フォルダ（直下に {temp}.xyz として保存）
-  - initial_temperature (float): 初期温度
-  - cooling_rate_per_step (float): 1ステップあたりの冷却速度（絶対値で指定）
-  - is_unwrap (bool): PBCを展開するか否か
+    ##### その他
+    - target_temperature_export (特定温度での構造保存)
+      - target_temperatures (float[]): 出力したい温度のリスト（必ず高温から降順で指定）
+      - output_path (string): 保存先フォルダ（直下に {temp}.xyz として保存）
+      - initial_temperature (float): 初期温度
+      - cooling_rate_per_step (float): 1ステップあたりの冷却速度（絶対値で指定）
+      - is_unwrap (bool): PBCを展開するか否か
 
 ## Dependencies
 This project uses the following third-party libraries:
