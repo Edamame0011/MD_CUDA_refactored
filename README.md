@@ -86,10 +86,10 @@ modeの値によって、必要なパラメータが異なります。
 typeの値によって、必要なパラメータが異なります。
 |typeの値|パラメータ名|型|説明|
 |---|---|---|---|
-|lennard_jones|numbers|int[ $s$ ]|粒子種毎の原子番号|
-||sigma|float[ $s*s$ ]|LJパラメータ $\sigma$ |
-||epsilon|float[ $s*s$ ]|LJパラメータ $\epsilon$ |
-||cutoff|float[ $s*s$ ]|カットオフ距離 |
+|lennard_jones|numbers|int[]|粒子種毎の原子番号 ( $s$ 要素 )|
+||sigma|float[]|LJパラメータ $\sigma$ ( $s^2$ 要素)|
+||epsilon|float[]|LJパラメータ $\epsilon$ ( $s^2$ 要素)|
+||cutoff|float[]|カットオフ距離 ( $s^2$ 要素)|
 |NNP (TorchScript形式)|max_edges|int|系全体のエッジ数の上限|
 ||model_path|string|モデルのパス|
 ||cutoff|float|カットオフ距離|
