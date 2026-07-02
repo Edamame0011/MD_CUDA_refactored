@@ -103,6 +103,40 @@
 - force_model_path: 力を推論するモデルのパス
 - energy_model_path: エネルギーを推論するモデルのパス
 
+### steps/simulation/ensemble
+#### NVE: NVEシミュレーション
+- temperature: 初期温度
+
+### NVT: NVTシミュレーション
+- thermostat: 熱浴の種類 ("Nose-Hoover" or "Bussi" or "Langevin")
+<Nose-Hooverの場合>  
+- tau: tauの値
+- temperature: 初期温度
+- scheduler: 温度変化 (後述)
+
+
+<Bussiの場合>  
+- tau: tauの値
+- seed: 乱数シード
+- temperature: 初期温度
+- scheduler: 温度変化 (後述)
+
+
+<Langevinの場合>
+- tau: tauの値
+- seed: 乱数シード
+- temperature: 初期温度
+- scheduler: 温度変化 (後述)
+
+
+<schedulerの設定>
+- "scheduler": "constant"  
+  一定温度でシミュレーション
+
+- "scheduler": "linear"
+  毎ステップ線形に温度を変えながらシミュレーション
+-- rate_per_unit_time: 単位時間毎の温度変化 (上げていく場合は+、下げていく場合は-)
+  
 ### steps/observer
 #### linear: 線形スケールで時間・運動エネルギー・ポテンシャル・全エネルギー・温度を出力
 - interval: 出力間隔 (ステップ)
@@ -117,7 +151,7 @@
 - initial_temperature: 初期温度
 - cooling_rate_per_step: 1ステップあたりの冷却速度 (現在は冷却のみに対応。NVTの設定とは違って絶対値で記述)
 
-### linear_export_trajectory: 線形スケールでトラジェクトリを保存
+#### linear_export_trajectory: 線形スケールでトラジェクトリを保存
 - output_path: 出力先ディレクトリ
 - is_unwrap: pbcを展開するか否か (bool)
 - interval: 出力間隔 (ステップ)
