@@ -108,7 +108,7 @@
 - temperature: 初期温度
 
 ### NVT: NVTシミュレーション
-- thermostat: 熱浴の種類 ("Nose-Hoover" or "Bussi" or "Langevin")
+- thermostat: 熱浴の種類 ("Nose-Hoover" or "Bussi" or "Langevin")  
 <Nose-Hooverの場合>  
 - tau: tauの値
 - temperature: 初期温度
