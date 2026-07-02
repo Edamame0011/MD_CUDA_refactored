@@ -134,6 +134,8 @@ schedulerの設定値
   - divisions (int): $10^1$ ステップ毎の分割数
 
 ##### トラジェクトリの出力
+
+
 |typeの値|パラメータ名|型|説明|
 |linear_export_trajectory (線形保存)|output_path|string|出力先ファイルパス|
 ||is_unwrap|bool|PBCを展開するか否か|
