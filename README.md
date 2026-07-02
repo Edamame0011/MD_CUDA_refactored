@@ -122,43 +122,8 @@ stepsは配列になっており、複数のシミュレーションを連続し
 schedulerの設定値
 - "constant": 一定温度でシミュレーションを行います。
 - "linear" : 毎ステップ線形に温度を変化させます。
-    - rate_per_unit_time (数値): 単位時間あたりの温度変化量（昇温は +、降温は -）
+    - rate_per_unit_time (float): 単位時間あたりの温度変化量（昇温は +、降温は -）
 
-#### NVE: NVEシミュレーション
-- temperature: 初期温度
-
-#### NVT: NVTシミュレーション
-- thermostat: 熱浴の種類 ("Nose-Hoover" or "Bussi" or "Langevin")  
-
-
-<Nose-Hooverの場合>  
-- tau: tauの値
-- temperature: 初期温度
-- scheduler: 温度変化 (後述)
-
-
-<Bussiの場合>  
-- tau: tauの値
-- seed: 乱数シード
-- temperature: 初期温度
-- scheduler: 温度変化 (後述)
-
-
-<Langevinの場合>
-- tau: tauの値
-- seed: 乱数シード
-- temperature: 初期温度
-- scheduler: 温度変化 (後述)
-
-
-<schedulerの設定>
-- "scheduler": "constant"  
-  一定温度でシミュレーション
-
-- "scheduler": "linear"  
-  毎ステップ線形に温度を変えながらシミュレーション  
-  rate_per_unit_time: 単位時間毎の温度変化 (上げていく場合は+、下げていく場合は-)
-  
 ### steps/observer
 #### linear: 線形スケールで時間・運動エネルギー・ポテンシャル・全エネルギー・温度を出力
 - interval: 出力間隔 (ステップ)
