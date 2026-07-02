@@ -133,8 +133,8 @@
 - "scheduler": "constant"  
   一定温度でシミュレーション
 
-- "scheduler": "linear"
-  毎ステップ線形に温度を変えながらシミュレーション
+- "scheduler": "linear"  
+  毎ステップ線形に温度を変えながらシミュレーション  
 -- rate_per_unit_time: 単位時間毎の温度変化 (上げていく場合は+、下げていく場合は-)
   
 ### steps/observer
