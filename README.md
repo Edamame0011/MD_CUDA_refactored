@@ -12,8 +12,8 @@
             <modeに応じた設定>
         }, 
         "interactions": {
-            "cell_list": <cell linked-listを用いるか否か ("true" or "false")>,
-            "sort": <cell linked-listのインデックスに基づいてソートを行うか否か ("true" or "false")>
+            "cell_list": <cell linked-listを用いるか否か (bool)>,
+            "sort": <cell linked-listのインデックスに基づいてソートを行うか否か (bool)>
             "neighbour_list": {
                 "cutoff": <カットオフ距離>, 
                 "margin": <カットオフ距離からのマージン>
@@ -34,7 +34,7 @@
                     "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
                     <typeに応じた設定>
                 }, 
-                "use_graph": <CUDA Graphsを用いるか否か ("True" or "False")>
+                "use_graph": <CUDA Graphsを用いるか否か (bool)>
             }, 
             "observer": {
                 "type": <出力の種類>, 
@@ -52,7 +52,7 @@
                     "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
                     <typeに応じた設定>
                 }, 
-                "use_graph": <CUDA Graphsを用いるか否か ("True" or "False")>
+                "use_graph": <CUDA Graphsを用いるか否か (bool)>
             }, 
             "observer": {
                 "type": <出力の種類>, 
@@ -60,7 +60,7 @@
             },
             "save_last_structure (optional)": {
                 "path": 保存先のパス
-                "is_unwrap": pbcの補正を展開するか否か ("True" or "False")
+                "is_unwrap": pbcの補正を展開するか否か (bool)
             }
             "step (optional)": <前のシミュレーションのステップを引き継ぐかリセットするか ("reset"ならリセット)>
         }, 
