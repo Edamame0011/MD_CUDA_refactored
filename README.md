@@ -2,111 +2,77 @@
 ```
 {
     "meta": {
-        "name": "test_multi_step", 
-        "unit": "lj", 
-        "seed": 12345
+        "name": <シミュレーションの名前>, 
+        "unit": <ユニット ("lj" or "metal")>, 
+        "seed": <初期速度の設定に用いる乱数シード>
     }, 
     "common_settings": {
         "atoms": {
-            "mode": "generate_binary_lj", 
-            "n_atoms": 1000, 
-            "density": 1.2, 
-            "ratio": [0.8, 0.2]
-        }, 
-        "cell" : {
-            "type": "cubic"
+            "mode": <初期配置をどのように作成するか ("generate_binary_lj" or "from_file")>, 
+            <modeに応じた設定>
         }, 
         "interactions": {
-            "cell_list": false, 
+            "cell_list": <cell linked-listを用いるか否か ("true" or "false")>,
+            "sort": <cell linked-listのインデックスに基づいてソートを行うか否か ("true" or "false")>
             "neighbour_list": {
-                "cutoff": 2.0, 
-                "margin": 0.7
+                "cutoff": <カットオフ距離>, 
+                "margin": <カットオフ距離からのマージン>
             }, 
             "potentials": {
-                "type": "lennard_jones", 
-                "numbers": [0, 1], 
-                "sigma": [1.0, 0.8, 0.8, 0.88], 
-                "epsilon": [1.0, 1.5, 1.5, 0.5], 
-                "cutoff": [1.5, 2.0, 2.0, 1.5]
+                "type": <用いるポテンシャルの種類>, 
+                <typeに応じた設定>
             }
         }
     }, 
     "steps": [
         {
-            "name": "equilibration run", 
+            "name": <シミュレーションステップの名前>, 
             "simulation": {
-                "dt": 5e-3, 
-                "simulation_time": 10, 
+                "dt": <タイムステップ>, 
+                "simulation_time": <シミュレーション時間 (単位系はmeta/unitで設定)>, 
                 "ensemble": {
-                    "type": "NVT", 
-                    "thermostat": "Bussi", 
-                    "tau": 0.02, 
-                    "seed": 12345, 
-                    "temperature": 2.0, 
-                    "scheduler": "constant"
+                    "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
+                    <typeに応じた設定>
                 }, 
-                "use_graph": true
+                "use_graph": <CUDA Graphsを用いるか否か ("True" or "False")>
             }, 
             "observer": {
-                "type": "log", 
-                "divisions": 9
+                "type": <出力の種類>, 
+                <typeに応じた設定>
             }
         }, 
 
         {
-            "name": "production run", 
+            "name": <シミュレーションステップの名前>, 
             "simulation": {
-                "dt": 5e-3, 
-                "simulation_time": 1e+2, 
-                "cell_type": "cubic", 
+                "dt": <タイムステップ>, 
+                "simulation_time": <シミュレーション時間 (単位系はmeta/unitで設定)>, 
                 "ensemble": {
-                    "type": "NVT", 
-                    "thermostat": "Bussi", 
-                    "tau": 0.02, 
-                    "seed": 12345, 
-                    "temperature": 2.0, 
-                    "scheduler": "constant"
+                    "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
+                    <typeに応じた設定>
                 }, 
-                "use_graph": true
+                "use_graph": <CUDA Graphsを用いるか否か ("True" or "False")>
             }, 
             "observer": {
-                "type": "log", 
-                "divisions": 9
+                "type": <出力の種類>, 
+                <typeに応じた設定>
             }, 
-            "step": "reset"
+            "step": <前のシミュレーションのステップを引き継ぐかリセットするか ("reset"ならリセット)>
         }, 
 
-        {
-            "name": "energy minimization", 
-            "minimize": {
-                "type": "fire", 
-                "checker": {
-                    "type": "max_norm", 
-                    "threshold": 1e-12
-                }, 
-                "params": {
-                    "dt_start": 2e-3, 
-                    "n_max": 5000, 
-                    "t_max": 5.0, 
-                    "t_min": 0.02, 
-                    "n_delay": 20, 
-                    "f_inc": 1.1, 
-                    "f_dec": 0.5, 
-                    "alpha_start": 0.25, 
-                    "f_alpha": 0.99, 
-                    "n_neg_max": 2000, 
-                    "initialdelay": true
-                }
-            }, 
-            "observer": {
-                "type": "log", 
-                "divisions": 9
-            }, 
-            "step": "reset"
-        }
+        <必要であれば他のシミュレーション設定>
     ] 
 }
 ```
+
+### common_settings/atoms
+- type
+  generate_binary_lj: バイナリljユニットを作成
+  設定項目
+-- "numbers": 粒子種毎の原子番号 (2要素の配列)
+-- "sigma": ljパラメータσ (4要素の配列)
+-- "epsilon": ljパラメータε (4要素の配列)
+-- "cutoff": カットオフ距離 (4要素の配列) 
 
 ## Dependencies
 This project uses the following third-party libraries:
