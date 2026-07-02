@@ -76,7 +76,11 @@ modeの値によって、必要なパラメータが異なります。
 
 |modeの値|パラメータ名|型|説明|
 |---|---|---|---|
-|generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数
+|generate_binary_lj (バイナリLJ作成)|n_atoms|int|粒子数|
+|---|density|float|数密度|
+|---|ratio|配列|粒子Aと粒子Bの比率|
+|from_file (外部ファイル読み込み)|format|string|ファイルフォーマット (現在は"xyz"のみ)|
+|---|path|string|読み込むファイルのパス|
 
 
 ### common_settings/atoms
