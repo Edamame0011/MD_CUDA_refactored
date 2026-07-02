@@ -101,7 +101,27 @@ typeの値によって、必要なパラメータが異なります。
 ||energy_model_path|string|ポテンシャル推論モデルのパス|
 ||cutoff|float|カットオフ距離|
 
-### steps/simulation/ensemble
+### シミュレーションステップ  
+stepsは配列になっており、複数のシミュレーションを連続して実行できます。
+#### NVEの場合
+- temperature (int): 初期温度
+
+#### NVTの場合
+- thermostat (string): 熱浴の種類
+- 各熱浴毎のパラメータ:
+|パラメータ|Nose-Hoover|Bussi|Langevin|
+|---|---|---|---|
+|tau|○|○|○|
+|temperature|○|○|○|
+|seed|-|○|○|
+|scheduler|○|○|○|
+
+
+schedulerの設定値
+- "constant": 一定温度でシミュレーションを行います。
+- "linear" : 毎ステップ線形に温度を変化させます。
+    - rate_per_unit_time (数値): 単位時間あたりの温度変化量（昇温は +、降温は -）
+
 #### NVE: NVEシミュレーション
 - temperature: 初期温度
 
