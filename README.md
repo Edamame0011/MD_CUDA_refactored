@@ -103,10 +103,12 @@ typeの値によって、必要なパラメータが異なります。
 
 ### シミュレーションステップ  
 stepsは配列になっており、複数のシミュレーションを連続して実行できます。
-#### NVEの場合
+
+#### simulation/ensemble
+##### NVEの場合
 - temperature (int): 初期温度
 
-#### NVTの場合
+##### NVTの場合
 - thermostat (string): 熱浴の種類
 - 各熱浴毎のパラメータ:
 
@@ -124,36 +126,32 @@ schedulerの設定値
 - "linear" : 毎ステップ線形に温度を変化させます。
     - rate_per_unit_time (float): 単位時間あたりの温度変化量（昇温は +、降温は -）
 
-### steps/observer
-#### linear: 線形スケールで時間・運動エネルギー・ポテンシャル・全エネルギー・温度を出力
-- interval: 出力間隔 (ステップ)
+#### observer (出力設定)
+##### 時間・エネルギー・温度を出力
+- linear: 線形出力
+  - interval (int): 出力間隔 (ステップ数)
+- log: ログスケール出力
+  - divisions (int): $10^1$ ステップ毎の分割数
 
-#### log: ログスケールで時間・運動エネルギー・ポテンシャル・全エネルギー・温度を出力
-- divisions: $10^1$ ステップ毎の分割数
+##### トラジェクトリの出力
+- linear_export_trajectory (線形保存)
+  - output_path (string): 出力先ディレクトリ
+  - is_unwrap (bool): PBCを展開するか否か
+  - interval (int): 出力間隔（ステップ数）
+- log_export_trajectory (ログスケール保存)
+  - output_path (string), is_unwrap (bool), divisions (int): $10^1$ ステップ毎の分割数
+- log_plus_stride_export_trajectory (ログ＋線形間隔保存 ※バグの可能性あり)
+  - output_path (string), is_unwrap (bool), divisions (int)
+  - num_trajectory (int): 保存するトラジェクトリの総数
+  - stride (int): 空けるステップ数
 
-#### target_temperature_export: 温度を変えながらシミュレーションを行う際に、特定温度でのトラジェクトリをエクスポート
-- target_temperatures: 出力する温度 (配列、必ず高い順にする)
-- output_path: 出力するフォルダへのパス（設定したフォルダ直下に、{temp}.xyzで保存されます。）
-- is_unwrap: pbcの展開をするか否か (bool)
-- initial_temperature: 初期温度
-- cooling_rate_per_step: 1ステップあたりの冷却速度 (現在は冷却のみに対応。NVTの設定とは違って絶対値で記述)
-
-#### linear_export_trajectory: 線形スケールでトラジェクトリを保存
-- output_path: 出力先ディレクトリ
-- is_unwrap: pbcを展開するか否か (bool)
-- interval: 出力間隔 (ステップ)
-
-#### log_export_trajectory: ログスケールでトラジェクトリを保存
-- output_path: 出力先ディレクトリ
-- is_unwrap: pbcを展開するか否か (bool)
-- divisions: $10^1$ ステップ毎の分割数
-
-#### log_plus_stride_export_trajectory: ログスケール + 線形間隔をあけてトラジェクトリを保存 (何かバグってるかもしれないです。)
-- num_trajectory: 保存するトラジェクトリの数
-- stride: 何ステップ開けるか
-- output_path: 出力先ディレクトリ
-- is_unwrap: pbcを展開するか否か (bool)
-- divisions: $10^1$ ステップ毎の分割数
+##### その他
+- target_temperature_export (特定温度での構造保存)
+  - target_temperatures (float[]): 出力したい温度のリスト（必ず高温から降順で指定）
+  - output_path (string): 保存先フォルダ（直下に {temp}.xyz として保存）
+  - initial_temperature (float): 初期温度
+  - cooling_rate_per_step (float): 1ステップあたりの冷却速度（絶対値で指定）
+  - is_unwrap (bool): PBCを展開するか否か
 
 ## Dependencies
 This project uses the following third-party libraries:
