@@ -66,13 +66,15 @@
 ```
 
 ### common_settings/atoms
-- type
-  generate_binary_lj: バイナリljユニットを作成
-  設定項目
--- "numbers": 粒子種毎の原子番号 (2要素の配列)
--- "sigma": ljパラメータσ (4要素の配列)
--- "epsilon": ljパラメータε (4要素の配列)
--- "cutoff": カットオフ距離 (4要素の配列) 
+#### generate_binary_lj: バイナリljユニットを作成
+- "numbers": 粒子種毎の原子番号 (2要素の配列)
+- "sigma": ljパラメータσ (4要素の配列)
+-  "epsilon": ljパラメータε (4要素の配列)
+- "cutoff": カットオフ距離 (4要素の配列)
+
+#### from_file: ファイルから初期状態を読み込み
+- "format": ファイルのフォーマット (現在xyzフォーマットにのみ対応)
+- "path": ファイルへのパス
 
 ## Dependencies
 This project uses the following third-party libraries:
