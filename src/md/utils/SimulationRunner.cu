@@ -35,6 +35,7 @@
 #include <md/temperature_schedulers/LinearScheduler.cuh>
 #include <md/interactions/NNP_CSR.cuh>
 #include <md/interactions/NNP_aoti.cuh>
+#include <md/interactions/NNP_force_aoti.cuh>
 #include <md/observers/LinearExportTrajectory.cuh>
 #include <md/observers/LogExportTrajectory.cuh>
 #include <md/observers/TargetTemperatureExporter.cuh>
@@ -446,7 +447,23 @@ void SimulationRunner::build_interaction(const json& i_setting) {
                 model_path
             );
 
-        } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+        } else if (p_type == "NNP_force_aoti") {
+            float cutoff = p_setting.at("cutoff").get<float>();
+            int max_edges = p_setting.at("max_edges").get<int>();
+            string force_model_path = p_setting.at("force_model_path").get<string>();
+            string energy_model_path = p_setting.at("energy_model_path").get<string>();
+
+            this->interaction =  std::make_unique<md::interactions::NNP_force_aoti>(
+                *state, 
+                cell.get(), 
+                nl.get(), 
+                cutoff, 
+                max_edges, 
+                force_model_path, 
+                energy_model_path
+            );
+
+        }else throw std::runtime_error("未対応のpotential typeです: " + p_type);
     }
 }
 
