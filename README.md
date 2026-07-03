@@ -34,7 +34,7 @@
                     "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
                     <typeに応じた設定>
                 }, 
-                "use_graph": <CUDA Graphsを用いるか否か (bool)>
+                "use_graph": <CUDA Graphsを用いる際のグラフ一つあたりのステップ数（0で非使用） (int)>
             }, 
             "observer": {
                 "type": <出力の種類>, 
@@ -56,7 +56,7 @@
                     "type": <アンサンブルの種類 ("NVE" or "NVT")>, 
                     // typeに応じた設定
                 }, 
-                "use_graph": <CUDA Graphsを用いるか否か (bool)>
+                "use_graph": <CUDA Graphsを用いる際のグラフ一つあたりのステップ数（0で非使用） (int)>
             }, 
             "observer": {
                 "type": <出力の種類>, 
