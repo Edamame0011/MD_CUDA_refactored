@@ -21,9 +21,11 @@ TrajectoryExporter::TrajectoryExporter(State& state, const std::string& output_p
     for (size_t i = 0; i < N; i ++) {
         int atomic_num = h_atomic_numbers[i];
 
-        if (atomic_num < 1 || atomic_num > 20) { 
+        if (atomic_num > 20) { 
             throw std::runtime_error("Invalid atomic number detected.");
 
+        } else if (atomic_num == 0) {
+            species[i] = "X";
         } else {
             species[i] = atom_number_map[atomic_num - 1];
         }    

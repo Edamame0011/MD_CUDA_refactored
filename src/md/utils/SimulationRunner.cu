@@ -46,9 +46,12 @@
 #include <md/observers/TrajectoryExporter.cuh>
 
 #include <cmath>
+#include <fstream>
+#include <iostream>
 
 using namespace md::utils;
 using namespace md;
+namespace fs = std::filesystem;
 
 using string = std::string;
 using json = nlohmann::json;
@@ -59,9 +62,20 @@ SimulationRunner::SimulationRunner(const string& setting_path) {
     if (!f.is_open()) throw std::runtime_error("jsonファイルを開けません。" );
     this->j = json::parse(f);
 
-    json m_setting = j.at("meta");
-    json c_setting = j.at("common_settings");
+    const json& m_setting = j.at("meta");
+    const json& c_setting = j.at("common_settings");
 
+    // 親ディレクトリの作成
+    parent_dir = m_setting.at("name").get<string>();
+    fs::create_directories(parent_dir);
+
+    // 親ディレクトリにjsonをコピーしておく
+    fs::copy_file(
+        setting_path, 
+        parent_dir / "setting.json", 
+        fs::copy_options::overwrite_existing
+    );
+    
     // 乱数の初期化
     int rand_seed = m_setting.value("seed", 12345);
     if (rand_seed < 0) {
@@ -87,11 +101,14 @@ void SimulationRunner::run() {
         string name = step.at("name");
         std::cout << "シミュレーション: " << name << "を実行します。" << std::endl;
 
+        this->step_dir = parent_dir / name;
+        fs::create_directory(step_dir);
+
         // オブザーバーの初期化
         this->build_observer(step.at("observer"));
 
         if (step.contains("simulation")) {
-            json s_setting = step.at("simulation");
+            const json& s_setting = step.at("simulation");
 
             state->dt = s_setting.at("dt");
 
@@ -104,18 +121,8 @@ void SimulationRunner::run() {
             // シミュレーターの作成
             Simulator simulator(*state, interaction.get(), integrator.get(), observer.get(), cell.get());
 
-            // 時間の計測
-            auto start = std::chrono::steady_clock::now();
-
             // シミュレーションの実行
-            simulator.run(s_setting.at("simulation_time"), s_setting.at("use_graph"));
-            cudaDeviceSynchronize();
-
-            auto end = std::chrono::steady_clock::now();
-            double elapsed_s = std::chrono::duration<double>(end - start).count();
-
-            std::cout << "かかった時間：" << elapsed_s << "s" << std::endl;
-
+            simulator.run(s_setting.at("simulation_time"), s_setting.value("use_graph", 100), s_setting.value("log_step", 1000));
         } else if (step.contains("minimize")) {
             json mi_setting = step.at("minimize");
             // チェッカーの初期化
@@ -196,34 +203,38 @@ void SimulationRunner::build_observer(const json& o_setting) {
 
     if (o_type == "linear") {
         int interval = o_setting.at("interval").get<int>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output");
 
         this->observer = std::make_unique<md::observers::LinearOutput>(
             interval, 
-            interaction.get()
+            interaction.get(), 
+            output_path.string()
         );
 
     } else if (o_type == "log") {
         int divisions = o_setting.at("divisions");
         float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
         int counter = 5;
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.txt");
 
         this->observer = std::make_unique<md::observers::LogOutput>(
             log_interval, 
             counter, 
-            interaction.get()
+            interaction.get(), 
+            output_path.string()
         );
 
     } else if (o_type == "linear_export_trajectory") {
         int interval = o_setting.at("interval").get<int>();
         bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
-        string output_path = o_setting.at("output_path").get<string>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
 
         this->observer = std::make_unique<md::observers::LinearExportTrajectory>(
             interval, 
             is_unwrap, 
             *state, 
             cell.get(), 
-            output_path
+            output_path.string()
         );
 
     } else if (o_type == "log_export_trajectory") {
@@ -231,7 +242,8 @@ void SimulationRunner::build_observer(const json& o_setting) {
         float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
         int counter = 5;
         bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
-        string output_path = o_setting.at("output_path").get<string>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
+        fs::path temp_path = step_dir / o_setting.value("temp_path", "observer_temp.txt");
         
         this->observer = std::make_unique<md::observers::LogExportTrajectory>(
             log_interval, 
@@ -239,25 +251,27 @@ void SimulationRunner::build_observer(const json& o_setting) {
             is_unwrap, 
             *state, 
             cell.get(), 
-            output_path
+            output_path.string(), 
+            temp_path.string()
         );
 
     } else if (o_type == "target_temperature_export") {
         std::vector<float> target_temperatures = o_setting.at("target_temperatures").get<std::vector<float>>();
         float initial_temperature = o_setting.at("initial_temperature").get<float>();
         float cooling_rate_per_step = o_setting.at("cooling_rate_per_step").get<float>();
-        string output_path = o_setting.at("output_path").get<string>();
+        fs::path output_path = step_dir / o_setting.at("output_path").get<string>();
         bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
 
         this->observer = std::make_unique<md::observers::TargetTemperatureExporter>(
             target_temperatures, 
             initial_temperature, 
             cooling_rate_per_step, 
-            output_path, 
+            output_path.string(), 
             cell.get(), 
             is_unwrap
         );
 
+/*
     } else if(o_type == "log_plus_stride_export_trajectory") {
         size_t num_trajectory = o_setting.at("num_trajectory");
         float stride = o_setting.at("stride");
@@ -265,7 +279,7 @@ void SimulationRunner::build_observer(const json& o_setting) {
         float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
         int counter = 5;
         bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
-        string output_path = o_setting.at("output_path").get<string>();
+        fs::path output_path = step_dir / o_setting.at("output_path").get<string>();
         
         this->observer = std::make_unique<md::observers::LogplusStrideExportTrajectory>(
             num_trajectory, 
@@ -275,8 +289,9 @@ void SimulationRunner::build_observer(const json& o_setting) {
             is_unwrap, 
             *state, 
             cell.get(), 
-            output_path
+            output_path.string()
         );
+*/
 
     } else {
         throw std::runtime_error("未対応のoutput typeです: " + o_type);

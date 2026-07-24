@@ -1,15 +1,19 @@
 #pragma once
 
 #include <md/observers/Observer.cuh>
+#include <memory>
 
 namespace md::observers{
+    class EnergiesPrinter;
+
     class LinearOutput : public Observer {
         public:
-            LinearOutput(int interval, Interaction* _interaction) : output_interval(interval), interaction(_interaction) {}
+            LinearOutput(int interval, Interaction* _interaction, const std::string& output_path);
+            ~LinearOutput();
             void output(State& state) override;
             void init(State& state) override;
         private:
             int output_interval;
-            Interaction* interaction;
+            std::unique_ptr<EnergiesPrinter> printer;
     };
 }

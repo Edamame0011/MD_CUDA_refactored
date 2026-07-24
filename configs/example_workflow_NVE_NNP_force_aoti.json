@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "test_nve_nnp_aoti", 
+        "name": "test_multi_step", 
         "unit": "metal", 
         "seed": 12345
     }, 
@@ -20,10 +20,11 @@
                 "margin": 1.0
             }, 
             "potentials": {
-                "type": "NNP_aoti", 
+                "type": "NNP_force_aoti", 
                 "cutoff": 5.0, 
                 "max_edges": 70000, 
-                "model_path": "/home/nozawa/SchNet/model_schnet_aoti.pt2"
+                "force_model_path": "/home/nozawa/SchNet/model_gnnff_V2_aoti_force.pt2", 
+                "energy_model_path": "/home/nozawa/SchNet/model_gnnff_V2_aoti_energy.pt2"
             }
         }
     }, 
@@ -32,7 +33,7 @@
             "name": "equilibration run", 
             "simulation": {
                 "dt": 0.5, 
-                "simulation_time": 5e+2, 
+                "simulation_time": 5e+3, 
                 "ensemble": {
                     "type": "NVT", 
                     "thermostat": "Bussi", 
@@ -41,8 +42,7 @@
                     "temperature": 2.0, 
                     "scheduler": "constant"
                 }, 
-                "use_graph": false, 
-                "log_step": 100
+                "use_graph": false
             }, 
             "observer": {
                 "type": "log", 
@@ -53,22 +53,19 @@
             "name": "production run", 
             "simulation": {
                 "dt": 0.5, 
-                "simulation_time": 5e+2, 
+                "simulation_time": 5e+3, 
                 "cell_type": "cubic", 
                 "ensemble": {
                     "type": "NVE", 
                     "temperature": 2.0
                 }, 
-                "use_graph": false, 
-                "log_step": 100
+                "use_graph": false
             }, 
             "observer": {
-                "type": "log_export_trajectory", 
-                "is_unwrap": true, 
-                "output_path": "test_aoti.xyz", 
+                "type": "log", 
                 "divisions": 9
             }, 
             "step": "reset"
         }
-    ]
+    ] 
 }
