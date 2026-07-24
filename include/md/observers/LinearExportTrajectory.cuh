@@ -13,5 +13,6 @@ namespace md::observers{
             int output_interval;
             bool is_unwrap;
             TrajectoryExporter exporter;
+            std::ofstream ofs;
     };
 }

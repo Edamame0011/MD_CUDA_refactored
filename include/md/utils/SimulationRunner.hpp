@@ -3,6 +3,7 @@
 #include <string>
 #include <random>
 #include <memory>
+#include <filesystem>
 
 #include <external/nlohmann/json.hpp>
 
@@ -55,6 +56,11 @@ namespace md::utils {
 
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;
+
+            // すべての親ディレクトリ
+            std::filesystem::path parent_dir;
+            // ステップ毎のディレクトリ
+            std::filesystem::path step_dir;
 
             void configure_units(const nlohmann::json& m_setting);
             void build_state(const nlohmann::json& a_setting);

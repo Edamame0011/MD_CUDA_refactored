@@ -18,7 +18,7 @@ namespace md {
             ) : state(_state), interaction(_interaction), integrator(_integrator), observer(_observer), cell(_cell) { }
         
             // シミュレーションの実行
-            void run(float tsim, int loop_per_graph=100);
+            void run(float tsim, int loop_per_graph=100, int log_step=1000);
         
         private:
             State& state;
