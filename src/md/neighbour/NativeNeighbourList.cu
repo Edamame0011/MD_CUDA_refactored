@@ -9,6 +9,8 @@ using Top2 = md::neighbour::Top2;
 using Cell = md::Cell;
 using DeviceVec3 = md::DeviceVec3;
 
+constexpr int WARP_SIZE = 32;
+
 namespace {
     __global__ void generate_nl_kernel(
         bool* flag, 
@@ -102,7 +104,8 @@ namespace md::neighbour {
         auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // nlの作成
-        int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        int num_warps = NUM_THREADS / WARP_SIZE;
+        int num_blocks = (N + num_warps - 1) / num_warps;
         
         generate_nl_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
@@ -172,9 +175,11 @@ namespace md::neighbour {
             margin * margin
         );
 
-        int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        constexpr int num_warps = NUM_THREADS / WARP_SIZE;
+        int generate_nl_num_blocks = (N + num_warps - 1) / num_warps;
+        int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
 
-        generate_nl_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+        generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
             nl_conf, 
@@ -186,7 +191,7 @@ namespace md::neighbour {
             cell
         );
 
-        update_nl_conf_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+        update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
             nl_conf, 

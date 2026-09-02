@@ -11,6 +11,9 @@ namespace md {
         cudaMalloc(&this->top2, sizeof(Top2));
         cudaMalloc(&this->flag, sizeof(bool));
         cudaMemset(this->flag, 1, sizeof(bool));
+
+        list.resize(n_atoms * max_neighbours);
+        count.resize(n_atoms);
     }
 
     NeighbourList::~NeighbourList() {

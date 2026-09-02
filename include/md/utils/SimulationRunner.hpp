@@ -15,6 +15,7 @@ namespace md {
     class Observer;
     class Cell;
     class NeighbourList;
+    class CellList;
 //    class TemperatureScheduler;
     class Thermostat;
 //    class ConvChecker;
@@ -39,6 +40,7 @@ namespace md::utils {
             std::unique_ptr<Interaction> interaction;
             std::unique_ptr<Observer> observer;
             std::unique_ptr<NeighbourList> nl;
+            std::unique_ptr<CellList> cl;
 
 //            std::unique_ptr<TemperatureScheduler> scheduler;
             std::unique_ptr<Thermostat> thermostat;

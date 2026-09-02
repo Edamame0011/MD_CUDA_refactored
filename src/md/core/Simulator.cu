@@ -37,7 +37,7 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
     
         if (simstate.current_steps == 0) {
             interaction->calc_force(state, simstate);
-            observer->init(state);
+            observer->init(state, simstate);
         }
 
         int total_steps = static_cast<int>(tsim / simstate.dt);
@@ -87,7 +87,7 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
 
         if (simstate.current_steps == 0) {
             interaction->calc_force(state, simstate);
-            observer->init(state);
+            observer->init(state, simstate);
         }
 
         int total_steps = static_cast<int>(tsim / simstate.dt);

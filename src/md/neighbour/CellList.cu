@@ -228,16 +228,18 @@ namespace md {
 
         // ソート
         int num_blocks_sort = (N + NUM_THREADS - 1) / NUM_THREADS;
-        sort_pairs_kernel<<<1, 1, 0, simstate.stream>>>(
-            flag, 
+        cub::DeviceRadixSort::SortPairs(
             d_temp_storage, 
             temp_storage_bytes, 
             cell_id_ptr, 
             sorted_cell_id_ptr, 
             perm_ptr, 
             sorted_perm_ptr,  
-            N
-        ); 
+            N,
+            0,
+            sizeof(int) * 8,
+            simstate.stream
+        );
 
         apply_sort_kernel<<<num_blocks_sort, NUM_THREADS, 0, simstate.stream>>>(
             flag, 

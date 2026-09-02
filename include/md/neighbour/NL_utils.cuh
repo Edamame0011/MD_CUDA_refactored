@@ -1,4 +1,4 @@
-#pragma once;
+#pragma once
 
 #include <md/core/State.hpp>
 #include <md/core/Cell.cuh>
@@ -36,7 +36,7 @@ namespace md::neighbour {
             Cell _cell
         ) : pos(_pos), nl_conf(_nl_conf), cell(_cell) {}
 
-        __device__ Top2 operator () (const int idx) const {
+        __host__ __device__ Top2 operator () (const int idx) const {
             auto dx = pos.x[idx] - nl_conf.x[idx];
             auto dy = pos.y[idx] - nl_conf.y[idx];
             auto dz = pos.z[idx] - nl_conf.z[idx];

@@ -6,7 +6,7 @@
 namespace md { 
     class Cell;
 
-    namespace neighbor {
+    namespace neighbour {
         struct Top2;
     }
     

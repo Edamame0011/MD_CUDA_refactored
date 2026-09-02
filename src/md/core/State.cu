@@ -22,6 +22,10 @@ namespace md {
         this->force.y = force_ + N;
         this->force.z = force_ + N + N;
 
+        cudaMalloc(&this->image.x, N * sizeof(int));
+        cudaMalloc(&this->image.y, N * sizeof(int));
+        cudaMalloc(&this->image.z, N * sizeof(int));
+
         cudaMalloc(&this->mass, N * sizeof(float));
         cudaMalloc(&this->mass_inv, N * sizeof(float));
         cudaMalloc(&this->species, N * sizeof(int));
@@ -48,6 +52,9 @@ namespace md {
         cudaFree(pos.x);
         cudaFree(vel.x);
         cudaFree(force.x);
+        cudaFree(image.x);
+        cudaFree(image.y);
+        cudaFree(image.z);
         cudaFree(mass);
         cudaFree(mass_inv);
         cudaFree(species);
@@ -108,8 +115,7 @@ namespace md {
         std::swap(mass_inv, mass_inv_buffer);
     }
 
-    SimState::SimState(float dt_) {
-        this->dt = dt_;
+    SimState::SimState() {
         cudaStreamCreate(&stream);
     }
 

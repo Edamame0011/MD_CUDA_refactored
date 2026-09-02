@@ -40,7 +40,7 @@ namespace {
         const DeviceVec3 force
     ) {
         int idx = threadIdx.x + blockIdx.x * blockDim.x;
-        if (idx > n_atoms) return;
+        if (idx >= n_atoms) return;
 
         // 速度の更新
         vel.x[idx] += force.x[idx] * dt_half_conv;

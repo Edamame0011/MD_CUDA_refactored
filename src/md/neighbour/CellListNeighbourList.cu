@@ -49,10 +49,10 @@ namespace {
         float pxi, pyi, pzi;
 
         if (lane_id == 0) {
-            auto cid = cell_id[idx];
-            auto pxi = pos.x[idx];
-            auto pyi = pos.y[idx];
-            auto pzi = pos.z[idx];
+            cid = cell_id[idx];
+            pxi = pos.x[idx];
+            pyi = pos.y[idx];
+            pzi = pos.z[idx];
         }
 
         cid = tile.shfl(cid, 0);
@@ -170,9 +170,11 @@ namespace md::neighbour {
         cl.sort(state, simstate, flag);
 
         // nlの作成
-        int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        constexpr int num_tiles = NUM_THREADS / TILE_SIZE;
+        int generate_nl_num_blocks = (N + num_tiles - 1) / num_tiles;
+        int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
         
-        generate_nl_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+        generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
             N, 
@@ -188,7 +190,7 @@ namespace md::neighbour {
             cell
         );
 
-        update_nl_conf_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+        update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
             nl_conf, 
@@ -254,7 +256,8 @@ namespace md::neighbour {
         cl.generate(state, simstate, cell, flag);
         cl.sort(state, simstate, flag);
 
-        int generate_nl_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        constexpr int num_tiles = NUM_THREADS / TILE_SIZE;
+        int generate_nl_num_blocks = (N + num_tiles - 1) / num_tiles;
         int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
 
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(

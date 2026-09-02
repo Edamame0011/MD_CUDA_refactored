@@ -1,4 +1,5 @@
 #include <md/utils/SimulationRunner.hpp>
+#include <md/utils/initialize.hpp>
 
 #include <md/core/State.hpp>
 #include <md/integrators/Integrator.hpp>
@@ -13,18 +14,16 @@
 
 #include <md/core/constant.h>
 #include <md/core/Simulator.hpp>
+#include <md/integrators/ConstantVolumeLJ.hpp>
 // #include <md/integrators/ConstantVolume.hpp>
 #include <md/interactions/LJPotential.hpp>
 // #include <md/interactions/NNP.hpp>
 // #include <md/integrators/LangevinIntegrator.hpp>
-// #include <md/observers/LinearOutput.hpp>
-// #include <md/thermostats/NoThermostat.hpp>
+#include <md/observers/LinearEnergiesObserver.hpp>
+#include <md/observers/LogEnergiesObserver.hpp>
+#include <md/thermostats/NoThermostat.hpp>
 // #include <md/thermostats/NHC1.hpp>
 // #include <md/thermostats/BussiThermostat.hpp>
-// #include <md/utils/NeighbourList.hpp>
-// #include <md/utils/SortedCellList.hpp>
-// #include <md/utils/UnsortedCellList.hpp>
-// #include <md/observers/LogOutput.hpp>
 // #include <md/temperature_schedulers/TemperatureScheduler.hpp>
 // #include <md/temperature_schedulers/ConstantScheduler.hpp>
 // #include <md/temperature_schedulers/LinearScheduler.hpp>
@@ -36,10 +35,15 @@
 // #include <md/energy_minimizers/FireMinimizer.hpp>
 // #include <md/thermostats/KinEnergyCalculator.hpp>
 // #include <md/observers/TrajectoryExporter.hpp>
+#include <md/neighbour/CellList.hpp>
+#include <md/neighbour/NeighbourList.hpp>
+#include <md/neighbour/NativeNeighbourList.hpp>
+#include <md/neighbour/CellListNeighbourList.hpp>
 
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 using namespace md::utils;
 using namespace md;
@@ -169,4 +173,295 @@ void SimulationRunner::configure_units(const json& m_setting) {
     } else {
         throw std::runtime_error("未対応のunitです: " + unit_type);
     }
+}
+
+void SimulationRunner::build_state(const json& a_setting) {
+    string mode = a_setting.value("mode", "");
+    
+    if (mode == "generate_binary_lj") {
+        int n_atoms = a_setting.at("n_atoms").get<int>();
+        float density = a_setting.at("density").get<float>();
+        auto ratio_vec = a_setting.at("ratio").get<std::vector<float>>();
+        if (ratio_vec.size() < 2) throw std::runtime_error("ratioには少なくとも2つの要素が必要です。");
+        
+        float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
+        this->state = md::utils::generate_binary_lj(n_atoms, density, this->cell, a_ratio, mt);
+
+    } /*else if (mode == "from_file") {
+        string format = a_setting.value("format", "xyz");
+        if (format == "xyz") {
+            this->state = md::utils::initialize::read_state_from_xyz(this->cell, a_setting.at("path"));
+        } else {
+            throw std::runtime_error("未対応のファイルフォーマットです: " + format);
+        }
+    } else {
+        throw std::runtime_error("未対応のatoms modeです: " + mode);
+    }
+*/
+    this->simstate = std::make_unique<md::SimState>();
+}
+
+void SimulationRunner::build_observer(const json& o_setting) {
+    string o_type = o_setting.value("type", "linear");
+
+    if (o_type == "linear") {
+        int interval = o_setting.at("interval").get<int>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output");
+
+        this->observer = std::make_unique<md::observers::LinearEnergiesObserver>(
+            interval, 
+            interaction.get(), 
+            output_path.string()
+        );
+
+    } else if (o_type == "log") {
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        int counter = 5;
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.txt");
+
+        this->observer = std::make_unique<md::observers::LogEnergiesObserver>(
+            log_interval, 
+            counter, 
+            interaction.get(), 
+            output_path.string()
+        );
+
+/*
+    } else if (o_type == "linear_export_trajectory") {
+        int interval = o_setting.at("interval").get<int>();
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
+
+        this->observer = std::make_unique<md::observers::LinearExportTrajectory>(
+            interval, 
+            is_unwrap, 
+            *state, 
+            cell.get(), 
+            output_path.string()
+        );
+
+    } else if (o_type == "log_export_trajectory") {
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        int counter = 5;
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+        fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
+        fs::path temp_path = step_dir / o_setting.value("temp_path", "observer_temp.txt");
+        
+        this->observer = std::make_unique<md::observers::LogExportTrajectory>(
+            log_interval, 
+            counter, 
+            is_unwrap, 
+            *state, 
+            cell.get(), 
+            output_path.string(), 
+            temp_path.string()
+        );
+
+    } else if (o_type == "target_temperature_export") {
+        std::vector<float> target_temperatures = o_setting.at("target_temperatures").get<std::vector<float>>();
+        float initial_temperature = o_setting.at("initial_temperature").get<float>();
+        float cooling_rate_per_step = o_setting.at("cooling_rate_per_step").get<float>();
+        fs::path output_path = step_dir / o_setting.at("output_path").get<string>();
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+
+        this->observer = std::make_unique<md::observers::TargetTemperatureExporter>(
+            target_temperatures, 
+            initial_temperature, 
+            cooling_rate_per_step, 
+            output_path.string(), 
+            cell.get(), 
+            is_unwrap
+        );
+
+
+    } else if(o_type == "log_plus_stride_export_trajectory") {
+        size_t num_trajectory = o_setting.at("num_trajectory");
+        float stride = o_setting.at("stride");
+        int divisions = o_setting.at("divisions");
+        float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
+        int counter = 5;
+        bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
+        fs::path output_path = step_dir / o_setting.at("output_path").get<string>();
+        
+        this->observer = std::make_unique<md::observers::LogplusStrideExportTrajectory>(
+            num_trajectory, 
+            stride, 
+            log_interval, 
+            counter, 
+            is_unwrap, 
+            *state, 
+            cell.get(), 
+            output_path.string()
+        );
+*/
+
+    } else {
+        throw std::runtime_error("未対応のoutput typeです: " + o_type);
+    }
+}
+
+
+void SimulationRunner::build_ensemble(const json& e_setting) {
+    string ensemble = e_setting.value("type", "NVE");
+
+    if (ensemble == "NVE") {
+        md::utils::init_velocities(*state, e_setting.at("temperature"), mt);
+        this->thermostat = std::make_unique<md::thermostats::NoThermostat>();
+        this->integrator = std::make_unique<md::integrators::ConstantVolumeLJ>(this->thermostat.get());
+
+    } /* else if (ensemble == "NVT") {
+        md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
+        
+        // Schedulerの構築
+        string sched_type = e_setting.value("scheduler", "constant");
+        if (sched_type == "constant") {
+            this->scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
+
+        } else if (sched_type == "linear") {
+            float rate_per_step = (float)e_setting.at("rate_per_unit_time") * state->dt;
+            this->scheduler = std::make_unique<md::temperature_schedulers::LinearScheduler>(e_setting.at("temperature"), rate_per_step);
+
+        } else {
+            throw std::runtime_error("未対応のschedulerです: " + sched_type);
+        }
+
+        // Thermostatの構築
+        string thermo_type = e_setting.value("thermostat", "Nose-Hoover");
+        if (thermo_type == "Nose-Hoover") {
+            auto nhc = std::make_unique<md::thermostats::NHC1>(
+                e_setting.value("tau", 1.0f), this->scheduler.get()
+            );
+            nhc->init(*state);
+            this->thermostat = std::move(nhc);
+            this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
+
+        } 
+        else if (thermo_type == "Bussi") {
+            float tau = e_setting.value("tau", 1.0f); 
+            int seed = e_setting.value("seed", 12345);
+            auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, this->scheduler.get());
+            bussi->init(*state, seed);
+            this->thermostat = std::move(bussi);
+            this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
+
+        } 
+        else if (thermo_type == "Langevin") {
+            float gamma = 1.0f / e_setting.value("tau", 1.0f);
+            int seed = e_setting.value("seed", 12345);
+            auto langevin = std::make_unique<md::integrators::LangevinIntegrator>(gamma, seed, this->scheduler.get());
+            langevin->init(*state, seed);
+            this->integrator = std::move(langevin);
+
+        }
+        else {
+            throw std::runtime_error("未対応のthermostatです: " + thermo_type);
+        }
+    
+    } */ else {
+        throw std::runtime_error("未対応のensembleです: " + ensemble);
+    }
+}
+
+void SimulationRunner::build_interaction(const json& i_setting) {
+    use_cell_list = i_setting.value("cell_list", false);
+
+    json n_setting = i_setting.at("neighbour_list");
+    float cutoff = n_setting.value("cutoff", 5.0f);
+    float margin = n_setting.value("margin", 1.0f);
+    int max_neighbours = n_setting.value("max_neighbours", 100);
+
+    if (use_cell_list) {
+        auto lattice = cell->get_lattice();
+        int Mx = std::max(3, (int)(lattice[0] / (cutoff + margin)));
+        int My = std::max(3, (int)(lattice[1] / (cutoff + margin)));
+        int Mz = std::max(3, (int)(lattice[2] / (cutoff + margin)));
+        std::array<int, 3> M = {Mx, My, Mz};
+
+        // cell listの初期化
+        this->cl = std::make_unique<CellList>(M, *state, *cell);
+
+        // neighbour listの初期化
+        this->nl = std::make_unique<md::neighbour::CellListNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin, *cl);
+        nl->generate(*state, *simstate, *cell);
+
+    } else {
+        // neighbour listの初期化
+        this->nl = std::make_unique<md::neighbour::NativeNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin);
+        nl->generate(*state, *simstate, *cell);
+    }
+
+    // potantialの初期化
+    json p_setting = i_setting.at("potentials");
+    string p_type = p_setting.value("type", "lennard_jones");
+
+    if (p_type == "lennard_jones") {
+        std::vector<float> sigma = p_setting.at("sigma").get<std::vector<float>>();
+        std::vector<float> epsilon = p_setting.at("epsilon").get<std::vector<float>>();
+        std::vector<float> cutoff = p_setting.at("cutoff").get<std::vector<float>>();
+        std::vector<int> numbers = p_setting.at("numbers").get<std::vector<int>>();
+        int num_species = numbers.size();
+
+        this->interaction = std::make_unique<md::interactions::LJPotential>(num_species, *cell, nl.get(), sigma, epsilon, cutoff);
+
+    } /* else if (p_type == "NNP") {
+        float cutoff = p_setting.at("cutoff").get<float>();
+        int max_edges = p_setting.at("max_edges").get<int>();
+        string model_path = p_setting.at("model_path").get<string>();
+        
+        this->interaction = std::make_unique<md::interactions::NNP>(
+            *state, 
+            cell.get(), 
+            nl.get(), 
+            cutoff, 
+            max_edges, 
+            model_path
+        );
+
+    } else if (p_type == "NNP_csr") {
+        float cutoff = p_setting.at("cutoff").get<float>();
+        int max_edges = p_setting.at("max_edges").get<int>();
+        string model_path = p_setting.at("model_path").get<string>();
+    
+        this->interaction =  std::make_unique<md::interactions::NNP_CSR>(
+            *state, 
+            cell.get(), 
+            nl.get(), 
+            cutoff, 
+            max_edges, 
+            model_path
+        );
+
+    } else if (p_type == "NNP_aoti") {
+        float cutoff = p_setting.at("cutoff").get<float>();
+        int max_edges = p_setting.at("max_edges").get<int>();
+        string model_path = p_setting.at("model_path").get<string>();
+
+        this->interaction =  std::make_unique<md::interactions::NNP_aoti>(
+            *state, 
+            cell.get(), 
+            nl.get(), 
+            cutoff, 
+            max_edges, 
+            model_path
+        );
+
+    } else if (p_type == "NNP_force_aoti") {
+        float cutoff = p_setting.at("cutoff").get<float>();
+        int max_edges = p_setting.at("max_edges").get<int>();
+        string force_model_path = p_setting.at("force_model_path").get<string>();
+        string energy_model_path = p_setting.at("energy_model_path").get<string>();
+
+        this->interaction =  std::make_unique<md::interactions::NNP_force_aoti>(
+            *state, 
+            cell.get(), 
+            nl.get(), 
+            cutoff, 
+            max_edges, 
+            force_model_path, 
+            energy_model_path
+        );
+
+    } */ else throw std::runtime_error("未対応のpotential typeです: " + p_type);
 }

@@ -2,24 +2,21 @@
 
 #include <md/observers/Observer.hpp>
 #include <memory>
-#include <string>
 
-namespace md{
+namespace md{    
     class Interaction;
     
-    namespace observers {
+    namespace observers{
         class EnergiesPrinter;
-
-        class LogEnergiesObserver : public Observer {
+    
+        class LinearEnergiesObserver : public Observer {
             public:
-                LogEnergiesObserver(float _interval, int _counter, Interaction* _interaction, const std::string& output_path);
-                ~LogEnergiesObserver();
+                LinearEnergiesObserver(int interval, Interaction* _interaction, const std::string& output_path);
+                ~LinearEnergiesObserver();
                 void output(State& state, SimState& simstate) override;
                 void init(State& state, SimState& simstate) override;
             private:
-                float log_interval;
-                int counter;
-                float checker;
+                int output_interval;
                 std::unique_ptr<EnergiesPrinter> printer;
         };
     }

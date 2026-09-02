@@ -7,8 +7,13 @@ namespace md {
         float *x, *y, *z;
     };
 
+    struct DeviceInt3 {
+        int *x, *y, *z; 
+    };
+
     struct State {
         DeviceVec3 pos, vel, force;
+        DeviceInt3 image;
         float* mass;
         float* mass_inv;
         int* species;           // 粒子種類
@@ -16,6 +21,7 @@ namespace md {
 
         // ソートのためのバッファ
         DeviceVec3 pos_buffer, vel_buffer;
+        DeviceInt3 image_buffer;
         float *mass_buffer, *mass_inv_buffer;
         int *species_buffer, *particle_id_buffer;
 
@@ -41,7 +47,7 @@ namespace md {
         int current_steps = 0;
         cudaStream_t stream;
 
-        SimState(float dt);
+        SimState();
         ~SimState();
     };
 }
