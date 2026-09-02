@@ -16,7 +16,7 @@ namespace md {
     class Cell;
     class NeighbourList;
     class CellList;
-//    class TemperatureScheduler;
+    class TemperatureScheduler;
     class Thermostat;
 //    class ConvChecker;
 //    class EnergyMinimizer;
@@ -42,7 +42,7 @@ namespace md::utils {
             std::unique_ptr<NeighbourList> nl;
             std::unique_ptr<CellList> cl;
 
-//            std::unique_ptr<TemperatureScheduler> scheduler;
+            std::unique_ptr<TemperatureScheduler> scheduler;
             std::unique_ptr<Thermostat> thermostat;
 
 //            std::unique_ptr<ConvChecker> checker;

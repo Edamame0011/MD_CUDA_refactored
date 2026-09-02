@@ -6,7 +6,7 @@
 #include <md/interactions/Interaction.hpp>
 #include <md/observers/Observer.hpp>
 #include <md/core/Cell.cuh>
-// #include <md/temperature_schedulers/TemperatureScheduler.hpp>
+#include <md/temperature_schedulers/TemperatureScheduler.hpp>
 #include <md/thermostats/Thermostat.cuh>
 #include <md/neighbour/NeighbourList.hpp>
 // #include <md/convergence_checkers/ConvChecker.hpp>
@@ -15,18 +15,16 @@
 #include <md/core/constant.h>
 #include <md/core/Simulator.hpp>
 #include <md/integrators/ConstantVolumeLJ.hpp>
-// #include <md/integrators/ConstantVolume.hpp>
 #include <md/interactions/LJPotential.hpp>
 // #include <md/interactions/NNP.hpp>
-// #include <md/integrators/LangevinIntegrator.hpp>
+#include <md/integrators/LangevinIntegratorLJ.cuh>
 #include <md/observers/LinearEnergiesObserver.hpp>
 #include <md/observers/LogEnergiesObserver.hpp>
 #include <md/thermostats/NoThermostat.hpp>
-// #include <md/thermostats/NHC1.hpp>
-// #include <md/thermostats/BussiThermostat.hpp>
-// #include <md/temperature_schedulers/TemperatureScheduler.hpp>
-// #include <md/temperature_schedulers/ConstantScheduler.hpp>
-// #include <md/temperature_schedulers/LinearScheduler.hpp>
+#include <md/thermostats/NHC1.hpp>
+#include <md/thermostats/BussiThermostat.cuh>
+#include <md/temperature_schedulers/ConstantScheduler.hpp>
+#include <md/temperature_schedulers/LinearScheduler.hpp>
 // #include <md/observers/LinearExportTrajectory.hpp>
 // #include <md/observers/LogExportTrajectory.hpp>
 // #include <md/observers/TargetTemperatureExporter.hpp>
@@ -34,7 +32,7 @@
 // #include <md/convergence_checkers/MaxNorm.hpp>
 // #include <md/energy_minimizers/FireMinimizer.hpp>
 // #include <md/thermostats/KinEnergyCalculator.hpp>
-// #include <md/observers/TrajectoryExporter.hpp>
+#include <md/observers/TrajectoryExporter.hpp>
 #include <md/neighbour/CellList.hpp>
 #include <md/neighbour/NeighbourList.hpp>
 #include <md/neighbour/NativeNeighbourList.hpp>
@@ -43,6 +41,8 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <thrust/execution_policy.h>
+#include <thrust/sequence.h>
 #include <vector>
 
 using namespace md::utils;
@@ -119,8 +119,19 @@ void SimulationRunner::run() {
                 *state, *simstate, interaction.get(), integrator.get(), observer.get(), *cell
             );
 
-            // シミュレーションの実行
-            simulator.run(s_setting.at("simulation_time"), s_setting.value("use_graph", 100), s_setting.value("log_step", 1000));
+            // LinearScheduler reads the host-side current step while a graph is
+            // captured.  Re-capture one MD step at a time so its temperature is
+            // refreshed; constant-temperature and NVE runs keep the fast path.
+            const float simulation_time = s_setting.at("simulation_time").get<float>();
+            const int log_step = s_setting.value("log_step", 1000);
+            if (dynamic_cast<md::temperature_schedulers::LinearScheduler*>(scheduler.get()) != nullptr) {
+                const int steps = static_cast<int>(simulation_time / simstate->dt);
+                for (int i = 0; i < steps; ++i) {
+                    simulator.run(simstate->dt, 1, log_step);
+                }
+            } else {
+                simulator.run(simulation_time, s_setting.value("use_graph", 100), log_step);
+            }
 
         } /*else if (step.contains("minimize")) {
             json mi_setting = step.at("minimize");
@@ -145,20 +156,18 @@ void SimulationRunner::run() {
         }
 
         // シミュレーション終了後の処理
-        /*
         if (step.contains("save_last_structure")) {
-            json s = step.at("save_last_structure");
-            std::string output_path = s.at("path").get<std::string>();
-            bool is_unwrap = s.at("is_unwrap").get<bool>();
+            const json& s = step.at("save_last_structure");
+            fs::path output_path = step_dir / s.value("path", "last_structure.xyz");
+            bool is_unwrap = s.value("is_unwrap", false);
 
-            md::observers::TrajectoryExporter exporter(*state, output_path, cell.get());
+            md::observers::TrajectoryExporter exporter(*state, output_path.string(), cell.get());
             if (is_unwrap) {
                 exporter.export_trajectory_unwrap(*state);
             } else {
                 exporter.export_trajectory(*state);
             }
         }
-        */
     }
 }
 
@@ -186,6 +195,13 @@ void SimulationRunner::build_state(const json& a_setting) {
         
         float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
         this->state = md::utils::generate_binary_lj(n_atoms, density, this->cell, a_ratio, mt);
+
+        // State currently leaves trajectory bookkeeping arrays uninitialized.
+        // Initialize them here so save_last_structure is valid before any sorting.
+        cudaMemset(state->image.x, 0, n_atoms * sizeof(int));
+        cudaMemset(state->image.y, 0, n_atoms * sizeof(int));
+        cudaMemset(state->image.z, 0, n_atoms * sizeof(int));
+        thrust::sequence(thrust::device, state->particle_id, state->particle_id + n_atoms);
 
     } /*else if (mode == "from_file") {
         string format = a_setting.value("format", "xyz");
@@ -306,13 +322,18 @@ void SimulationRunner::build_observer(const json& o_setting) {
 void SimulationRunner::build_ensemble(const json& e_setting) {
     string ensemble = e_setting.value("type", "NVE");
 
+    // Destroy dependants before replacing the scheduler they refer to.
+    this->integrator.reset();
+    this->thermostat.reset();
+    this->scheduler.reset();
+
     if (ensemble == "NVE") {
         md::utils::init_velocities(*state, e_setting.at("temperature"), mt);
         this->thermostat = std::make_unique<md::thermostats::NoThermostat>();
         this->integrator = std::make_unique<md::integrators::ConstantVolumeLJ>(this->thermostat.get());
 
-    } /* else if (ensemble == "NVT") {
-        md::utils::initialize::init_velocities(*state, e_setting.at("temperature"), mt);
+    } else if (ensemble == "NVT") {
+        md::utils::init_velocities(*state, e_setting.at("temperature"), mt);
         
         // Schedulerの構築
         string sched_type = e_setting.value("scheduler", "constant");
@@ -320,7 +341,7 @@ void SimulationRunner::build_ensemble(const json& e_setting) {
             this->scheduler = std::make_unique<md::temperature_schedulers::ConstantScheduler>(e_setting.at("temperature"));
 
         } else if (sched_type == "linear") {
-            float rate_per_step = (float)e_setting.at("rate_per_unit_time") * state->dt;
+            float rate_per_step = e_setting.at("rate_per_unit_time").get<float>() * simstate->dt;
             this->scheduler = std::make_unique<md::temperature_schedulers::LinearScheduler>(e_setting.at("temperature"), rate_per_step);
 
         } else {
@@ -333,25 +354,25 @@ void SimulationRunner::build_ensemble(const json& e_setting) {
             auto nhc = std::make_unique<md::thermostats::NHC1>(
                 e_setting.value("tau", 1.0f), this->scheduler.get()
             );
-            nhc->init(*state);
+            nhc->init(*state, *simstate);
             this->thermostat = std::move(nhc);
-            this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
+            this->integrator = std::make_unique<md::integrators::ConstantVolumeLJ>(this->thermostat.get());
 
         } 
         else if (thermo_type == "Bussi") {
             float tau = e_setting.value("tau", 1.0f); 
-            int seed = e_setting.value("seed", 12345);
+            unsigned long long seed = e_setting.value("seed", 12345ULL);
             auto bussi = std::make_unique<md::thermostats::BussiThermostat>(tau, this->scheduler.get());
-            bussi->init(*state, seed);
+            bussi->init(*state, *simstate, seed);
             this->thermostat = std::move(bussi);
-            this->integrator = std::make_unique<md::integrators::ConstantVolume>(this->thermostat.get());
+            this->integrator = std::make_unique<md::integrators::ConstantVolumeLJ>(this->thermostat.get());
 
         } 
         else if (thermo_type == "Langevin") {
             float gamma = 1.0f / e_setting.value("tau", 1.0f);
-            int seed = e_setting.value("seed", 12345);
-            auto langevin = std::make_unique<md::integrators::LangevinIntegrator>(gamma, seed, this->scheduler.get());
-            langevin->init(*state, seed);
+            unsigned long long seed = e_setting.value("seed", 12345ULL);
+            auto langevin = std::make_unique<md::integrators::LangevinIntegratorLJ>(gamma, seed, this->scheduler.get());
+            langevin->init(*state, *simstate, seed);
             this->integrator = std::move(langevin);
 
         }
@@ -359,7 +380,7 @@ void SimulationRunner::build_ensemble(const json& e_setting) {
             throw std::runtime_error("未対応のthermostatです: " + thermo_type);
         }
     
-    } */ else {
+    } else {
         throw std::runtime_error("未対応のensembleです: " + ensemble);
     }
 }

@@ -46,29 +46,6 @@ namespace {
         perm[idx] = idx;
     }
 
-    __global__ void sort_pairs_kernel(
-        const bool* flag, 
-        void* d_temp_storage, 
-        size_t temp_storage_bytes, 
-        int* cell_id, 
-        int* sorted_cell_id, 
-        int* particle_id, 
-        int* sorted_particle_id, 
-        int num_atoms
-    ) {
-        if (*flag) {
-            cub::DeviceRadixSort::SortPairs(
-                d_temp_storage, 
-                temp_storage_bytes, 
-                cell_id, 
-                sorted_cell_id, 
-                particle_id, 
-                sorted_particle_id, 
-                num_atoms
-            );
-        }
-    }
-
     __global__ void apply_sort_kernel(
         const bool* flag, 
         const int* __restrict__ perm, 
@@ -77,11 +54,13 @@ namespace {
         const float* __restrict__ mass, 
         const float* __restrict__ mass_inv, 
         const int* __restrict__ species, 
+        const int* __restrict__ particle_id, 
         DeviceVec3 pos_buffer, 
         DeviceVec3 vel_buffer, 
         float* __restrict__ mass_buffer, 
         float* __restrict__ mass_inv_buffer, 
         int* __restrict__ species_buffer, 
+        int* __restrict__ particle_id_buffer, 
         const int num_atoms
     ) {
         if (!*flag) return;
@@ -100,6 +79,7 @@ namespace {
         mass_buffer[idx] = mass[old_idx];
         mass_inv_buffer[idx] = mass_inv[old_idx];
         species_buffer[idx] = species[old_idx];
+        particle_id_buffer[idx] = particle_id[old_idx];
     }
 
     __global__ void commit_sort_kernel(
@@ -109,11 +89,13 @@ namespace {
         float* __restrict__ mass, 
         float* __restrict__ mass_inv, 
         int* __restrict__ species, 
+        int* __restrict__ particle_id, 
         const DeviceVec3 pos_buffer, 
         const DeviceVec3 vel_buffer, 
         const float* __restrict__ mass_buffer, 
         const float* __restrict__ mass_inv_buffer, 
         const int* __restrict__ species_buffer, 
+        const int* __restrict__ particle_id_buffer, 
         const int num_atoms
     ) {
         if (!*flag) return;
@@ -130,6 +112,7 @@ namespace {
         mass[idx] = mass_buffer[idx];
         mass_inv[idx] = mass_inv_buffer[idx];
         species[idx] = species_buffer[idx];
+        particle_id[idx] = particle_id_buffer[idx];
     }
 
     __global__ void calc_cell_start_kernel(
@@ -249,11 +232,13 @@ namespace md {
             state.mass, 
             state.mass_inv, 
             state.species, 
+            state.particle_id, 
             state.pos_buffer, 
             state.vel_buffer, 
             state.mass_buffer, 
             state.mass_inv_buffer, 
             state.species_buffer, 
+            state.particle_id_buffer, 
             N
         );
 
@@ -265,11 +250,13 @@ namespace md {
             state.mass, 
             state.mass_inv, 
             state.species, 
+            state.particle_id, 
             state.pos_buffer, 
             state.vel_buffer, 
             state.mass_buffer, 
             state.mass_inv_buffer, 
             state.species_buffer, 
+            state.particle_id_buffer, 
             N
         );
 

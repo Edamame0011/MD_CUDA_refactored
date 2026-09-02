@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "test_multi_step", 
+        "name": "test_Langevin", 
         "unit": "lj", 
         "seed": 12345
     }, 
@@ -19,7 +19,7 @@
             "neighbour_list": {
                 "cutoff": 2.0, 
                 "margin": 0.7, 
-                "max_neighbours": 10000
+                "max_neighbours": 256
             }, 
             "potentials": {
                 "type": "lennard_jones", 
@@ -32,14 +32,15 @@
     }, 
     "steps": [
         {
-            "name": "equilibration run", 
+            "name": "production run", 
             "simulation": {
                 "dt": 5e-3, 
-                "simulation_time": 1e+2, 
+                "simulation_time": 2.5e+2, 
+                "cell_type": "cubic", 
                 "ensemble": {
                     "type": "NVT", 
-                    "thermostat": "Nose-Hoover", 
-                    "tau": 0.02, 
+                    "thermostat": "Langevin", 
+                    "tau": 1, 
                     "seed": 12345, 
                     "temperature": 2.0, 
                     "scheduler": "constant"
@@ -47,27 +48,9 @@
                 "use_graph": true
             }, 
             "observer": {
-                "type": "log", 
-                "divisions": 9
+                "type": "linear", 
+                "interval": 500
             }
-        }, 
-        {
-            "name": "production run", 
-            "simulation": {
-                "dt": 5e-3, 
-                "simulation_time": 5e+2, 
-                "cell_type": "cubic", 
-                "ensemble": {
-                    "type": "NVE", 
-                    "temperature": 2.0
-                }, 
-                "use_graph": true
-            }, 
-            "observer": {
-                "type": "log", 
-                "divisions": 9
-            }, 
-            "step": "reset"
         }
     ] 
 }

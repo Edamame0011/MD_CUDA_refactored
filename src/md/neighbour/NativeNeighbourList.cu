@@ -74,14 +74,17 @@ namespace {
 
                 if (is_neighbour) {
                     int offset = __popc(mask & ((1u << lane_id) - 1));
-                    list[i * max_neighbours + c + offset] = j_curr;
+                    int dst = c + offset;
+                    if (dst < max_neighbours) {
+                        list[i * max_neighbours + dst] = j_curr;
+                    }
                 }
 
                 c += __popc(mask);
             }
 
             if (lane_id == 0) {
-                count[i] = c;
+                count[i] = min(c, max_neighbours);
                 nl_conf.x[i] = pxi;
                 nl_conf.y[i] = pyi;
                 nl_conf.z[i] = pzi;

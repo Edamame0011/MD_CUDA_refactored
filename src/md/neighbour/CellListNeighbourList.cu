@@ -147,7 +147,7 @@ namespace {
         }
 
         if (lane_id == 0) {
-            count[idx] = c;
+            count[idx] = min(c, max_neighbours);
         }
     }
 }
