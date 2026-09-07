@@ -111,8 +111,7 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
                 auto current_time = std::chrono::steady_clock::now();
                 double elapsed_s = std::chrono::duration<double>(current_time - start).count();
 
-                std::cout << "Current steps: " << simstate.current_steps << " out of " << total_steps << std::endl;
-                std::cout << "経過時間：" << elapsed_s << "s" << std::endl;
+                std::cout << "Current steps: " << simstate.current_steps << " / " << total_steps << ", " << "経過時間：" << elapsed_s << "s" << std::endl;
 
                 next_print_step = ((simstate.current_steps / log_step) + 1) * log_step;
             }

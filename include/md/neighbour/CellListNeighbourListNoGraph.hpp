@@ -10,7 +10,7 @@ namespace md {
     namespace neighbour {
         class CellListNeighbourListNoGraph : public NeighbourList {
             public:
-                CellListNeighbourListNoGraph(int n_atoms, int max_neighbours, float cutoff, float margin, CellList* cl);
+                CellListNeighbourListNoGraph(int n_atoms, int max_neighbours, std::vector<float> cutoff_, float margin, CellList* cl);
                 ~CellListNeighbourListNoGraph();
 
                 void generate(State& state, SimState& simstate, Cell& cell) override;
@@ -21,8 +21,6 @@ namespace md {
 
             private:
                 CellList* cl;
-
-                float cutoff, margin;
 
                 bool flag = false;
 

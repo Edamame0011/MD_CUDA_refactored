@@ -14,13 +14,15 @@ constexpr int WARP_SIZE = 32;
 namespace {
     __global__ void generate_nl_kernel(
         bool* flag, 
-        DeviceVec3 pos, 
-        DeviceVec3 nl_conf, 
-        int num_atoms, 
-        int max_neighbours, 
-        int* list, 
-        int* count, 
-        float cutoff_margin_sq, 
+        const DeviceVec3 pos, 
+        const DeviceVec3 nl_conf, 
+        const int* __restrict__ species, 
+        const int num_atoms, 
+        const int num_species, 
+        const int max_neighbours, 
+        int* __restrict__ list, 
+        int* __restrict__ count, 
+        const float* __restrict__  cutoff_margin_sq, 
         Cell cell
     ) {
         if (!*flag) return;
@@ -34,16 +36,19 @@ namespace {
         if (i < num_atoms) {
 
             float pxi, pyi, pzi;
+            int si;
 
             if (lane_id == 0) {
                 pxi = pos.x[i];
                 pyi = pos.y[i];
                 pzi = pos.z[i];
+                si = species[i];
             }
 
             pxi = __shfl_sync(0xffffffff, pxi, 0);
             pyi = __shfl_sync(0xffffffff, pyi, 0);
             pzi = __shfl_sync(0xffffffff, pzi, 0);
+            si = __shfl_sync(0xffffffff, si, 0);
 
             int c = 0;
 
@@ -55,6 +60,7 @@ namespace {
                     auto pxj = pos.x[j_curr];
                     auto pyj = pos.y[j_curr];
                     auto pzj = pos.z[j_curr];
+                    int sj = species[j_curr];
 
                     // 距離の計算
                     auto dx = pxi - pxj;
@@ -65,7 +71,7 @@ namespace {
 
                     const auto dist_sq = dx * dx + dy * dy + dz * dz;
 
-                    if (dist_sq < cutoff_margin_sq) {
+                    if (dist_sq < cutoff_margin_sq[si * num_species + sj]) {
                         is_neighbour = true;
                     }
                 }
@@ -94,10 +100,12 @@ namespace {
 }
 
 namespace md::neighbour {
-    NativeNeighbourList::NativeNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_) 
-    : NeighbourList(n_atoms, max_neighbours_), cutoff(cutoff_), margin(margin_) {
+    NativeNeighbourList::NativeNeighbourList(int n_atoms, int max_neighbours_, std::vector<float> cutoff_, float margin_) 
+    : NeighbourList(n_atoms, max_neighbours_, margin_) {
         cudaMalloc(&this->flag, sizeof(bool));
         cudaMemset(this->flag, 1, sizeof(bool));
+
+        NeighbourList::init_cutoff(cutoff_);
     }
 
     NativeNeighbourList::~NativeNeighbourList() {
@@ -107,8 +115,6 @@ namespace md::neighbour {
 
     void NativeNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
-        auto cutoff_margin = cutoff + margin;
-        auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // nlの作成
         int num_warps = NUM_THREADS / WARP_SIZE;
@@ -118,11 +124,13 @@ namespace md::neighbour {
             flag, 
             state.pos, 
             nl_conf, 
+            state.species, 
             N, 
+            num_species, 
             max_neighbours, 
             thrust::raw_pointer_cast(list.data()), 
             thrust::raw_pointer_cast(count.data()), 
-            cutoff_margin_sq, 
+            thrust::raw_pointer_cast(cutoff_margin_sq.data()), 
             cell
         );
 
@@ -152,8 +160,6 @@ namespace md::neighbour {
 
     void NativeNeighbourList::check(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
-        auto cutoff_margin = cutoff + margin;
-        auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
         CalcDist op(
@@ -190,11 +196,13 @@ namespace md::neighbour {
             flag, 
             state.pos, 
             nl_conf, 
+            state.species, 
             N, 
+            num_species, 
             max_neighbours, 
             thrust::raw_pointer_cast(list.data()), 
             thrust::raw_pointer_cast(count.data()), 
-            cutoff_margin_sq, 
+            thrust::raw_pointer_cast(cutoff_margin_sq.data()), 
             cell
         );
 

@@ -46,6 +46,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 #include <vector>
+#include <algorithm>
 
 using namespace md::utils;
 using namespace md;
@@ -385,15 +386,16 @@ void SimulationRunner::build_interaction(const json& i_setting) {
     use_graphs = i_setting.value("use_graph", 0);
 
     json n_setting = i_setting.at("neighbour_list");
-    float cutoff = n_setting.value("cutoff", 5.0f);
+    std::vector<float> cutoff = n_setting.at("cutoff").get<std::vector<float>>();
     float margin = n_setting.value("margin", 1.0f);
     int max_neighbours = n_setting.value("max_neighbours", 100);
 
     if (use_cell_list) {
         auto lattice = cell->get_lattice();
-        int Mx = std::max(3, (int)(lattice[0] / (cutoff + margin)));
-        int My = std::max(3, (int)(lattice[1] / (cutoff + margin)));
-        int Mz = std::max(3, (int)(lattice[2] / (cutoff + margin)));
+        float cutoff_max = *std::max_element(cutoff.begin(), cutoff.end());
+        int Mx = std::max(3, (int)(lattice[0] / (cutoff_max + margin)));
+        int My = std::max(3, (int)(lattice[1] / (cutoff_max + margin)));
+        int Mz = std::max(3, (int)(lattice[2] / (cutoff_max + margin)));
         std::array<int, 3> M = {Mx, My, Mz};
 
         if (use_graphs > 0) {

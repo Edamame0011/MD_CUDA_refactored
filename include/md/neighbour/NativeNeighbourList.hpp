@@ -1,6 +1,7 @@
 #pragma once
 
 #include <md/neighbour/NeighbourList.hpp>
+#include <vector>
 
 namespace md { 
     class Cell;
@@ -8,7 +9,7 @@ namespace md {
     namespace neighbour {
         class NativeNeighbourList : public NeighbourList {
             public:
-                NativeNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_);
+                NativeNeighbourList(int n_atoms, int max_neighbours, std::vector<float> cutoff, float margin);
                 ~NativeNeighbourList();
 
                 void generate(State& state, SimState& simstate, Cell& cell) override;
@@ -17,8 +18,6 @@ namespace md {
                 NativeNeighbourList(const NeighbourList&) = delete;
                 NativeNeighbourList& operator=(const NeighbourList&) = delete;
             private:
-                float cutoff, margin;
-
                 bool* flag;
 
                 // cub用のバッファとそのサイズ

@@ -10,7 +10,7 @@ namespace md {
     namespace neighbour {
         class CellListNeighbourList : public NeighbourList {
             public:
-                CellListNeighbourList(int n_atoms, int max_neighbours, float cutoff, float margin, CellList& cl);
+                CellListNeighbourList(int n_atoms, int max_neighbours, std::vector<float> cutoff, float margin, CellList& cl);
                 ~CellListNeighbourList();
 
                 void generate(State& state, SimState& simstate, Cell& cell) override;
@@ -21,9 +21,7 @@ namespace md {
 
             private:
                 CellList& cl;
-
-                float cutoff, margin;
-
+                
                 bool* flag;
 
                 // cub用のバッファとそのサイズ

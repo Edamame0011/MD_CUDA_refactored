@@ -23,10 +23,13 @@ namespace md {
 
         protected:
             thrust::device_vector<int> list, count;
-            int max_neighbours;
+            thrust::device_vector<float> cutoff_margin_sq;
+            int max_neighbours, num_species;
+            float margin;
             DeviceVec3 nl_conf;
             md::neighbour::Top2* top2;
 
-            NeighbourList(int n_atoms, int max_neighbours_);
+            NeighbourList(int n_atoms, int max_neighbours_, float margin_);
+            void init_cutoff(const std::vector<float>& cutoff_);
         };
 }

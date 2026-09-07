@@ -20,7 +20,9 @@ namespace {
     __global__ void generate_nl_kernel(
         const bool* __restrict__ flag, 
         const DeviceVec3 pos, 
+        const int* __restrict__ species, 
         const int num_atoms, 
+        const int num_species, 
         const int max_neighbours, 
         const int Mx, 
         const int My, 
@@ -29,7 +31,7 @@ namespace {
         int* __restrict__ count, 
         const int* __restrict__ cell_id, 
         const int* __restrict__ cell_start_idx, 
-        const float cutoff_margin_sq, 
+        const float* __restrict__ cutoff_margin_sq, 
         Cell cell
     ) { 
         if (!*flag) return;
@@ -45,7 +47,7 @@ namespace {
 
         if (idx >= num_atoms) return;
 
-        int cid;
+        int cid, si;
         float pxi, pyi, pzi;
 
         if (lane_id == 0) {
@@ -53,12 +55,14 @@ namespace {
             pxi = pos.x[idx];
             pyi = pos.y[idx];
             pzi = pos.z[idx];
+            si = species[idx];
         }
 
         cid = tile.shfl(cid, 0);
         pxi = tile.shfl(pxi, 0);
         pyi = tile.shfl(pyi, 0);
         pzi = tile.shfl(pzi, 0);
+        si = tile.shfl(si, 0);
 
         int c = 0;
 
@@ -113,6 +117,7 @@ namespace {
                             const float pxj = pos.x[j];
                             const float pyj = pos.y[j];
                             const float pzj = pos.z[j];
+                            const int sj = species[j];
 
                             float dx_pos = pxi - pxj;
                             float dy_pos = pyi - pyj;
@@ -122,7 +127,7 @@ namespace {
 
                             const float dist_sq = dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos;
 
-                            is_neighbour = dist_sq < cutoff_margin_sq;
+                            is_neighbour = dist_sq < cutoff_margin_sq[si * num_species + sj];
                         }
 
                         const unsigned mask = tile.ballot(is_neighbour);
@@ -153,10 +158,12 @@ namespace {
 }
 
 namespace md::neighbour {
-    CellListNeighbourList::CellListNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_, CellList& cl_) 
-    : NeighbourList(n_atoms, max_neighbours_), cutoff(cutoff_), margin(margin_), cl(cl_) {
+    CellListNeighbourList::CellListNeighbourList(int n_atoms, int max_neighbours_, std::vector<float> cutoff_, float margin_, CellList& cl_) 
+    : NeighbourList(n_atoms, max_neighbours_, margin_), cl(cl_) {
         cudaMalloc(&this->flag, sizeof(bool));
         cudaMemset(this->flag, 1, sizeof(bool));
+
+        NeighbourList::init_cutoff(cutoff_);
     }
 
     CellListNeighbourList::~CellListNeighbourList() {
@@ -166,8 +173,6 @@ namespace md::neighbour {
 
     void CellListNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
-        auto cutoff_margin = cutoff + margin;
-        auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // clの作成
         cl.generate(state, simstate, cell, flag);
@@ -181,7 +186,9 @@ namespace md::neighbour {
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
+            state.species, 
             N, 
+            num_species, 
             max_neighbours, 
             cl.get_M()[0], 
             cl.get_M()[1], 
@@ -190,7 +197,7 @@ namespace md::neighbour {
             thrust::raw_pointer_cast(count.data()), 
             cl.get_cell_id(), 
             cl.get_cell_start_idx(), 
-            cutoff_margin_sq, 
+            thrust::raw_pointer_cast(cutoff_margin_sq.data()), 
             cell
         );
 
@@ -227,8 +234,6 @@ namespace md::neighbour {
 
     void CellListNeighbourList::check(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
-        auto cutoff_margin = cutoff + margin;
-        auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
         CalcDist op(
@@ -267,7 +272,9 @@ namespace md::neighbour {
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             state.pos, 
+            state.species, 
             N, 
+            num_species, 
             max_neighbours, 
             cl.get_M()[0], 
             cl.get_M()[1], 
@@ -276,7 +283,7 @@ namespace md::neighbour {
             thrust::raw_pointer_cast(count.data()), 
             cl.get_cell_id(), 
             cl.get_cell_start_idx(), 
-            cutoff_margin_sq, 
+            thrust::raw_pointer_cast(cutoff_margin_sq.data()), 
             cell
         );
 
