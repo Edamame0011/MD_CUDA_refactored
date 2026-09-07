@@ -9,8 +9,6 @@ namespace md {
         cudaMalloc(&this->nl_conf.y, n_atoms * sizeof(float));
         cudaMalloc(&this->nl_conf.z, n_atoms * sizeof(float));
         cudaMalloc(&this->top2, sizeof(Top2));
-        cudaMalloc(&this->flag, sizeof(bool));
-        cudaMemset(this->flag, 1, sizeof(bool));
 
         list.resize(n_atoms * max_neighbours);
         count.resize(n_atoms);
@@ -21,6 +19,5 @@ namespace md {
         cudaFree(this->nl_conf.y);
         cudaFree(this->nl_conf.z);
         cudaFree(this->top2);
-        cudaFree(this->flag);
     }
 }

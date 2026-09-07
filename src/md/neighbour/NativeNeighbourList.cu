@@ -95,10 +95,14 @@ namespace {
 
 namespace md::neighbour {
     NativeNeighbourList::NativeNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_) 
-    : NeighbourList(n_atoms, max_neighbours_), cutoff(cutoff_), margin(margin_) {}
+    : NeighbourList(n_atoms, max_neighbours_), cutoff(cutoff_), margin(margin_) {
+        cudaMalloc(&this->flag, sizeof(bool));
+        cudaMemset(this->flag, 1, sizeof(bool));
+    }
 
     NativeNeighbourList::~NativeNeighbourList() {
         cudaFree(d_temp_storage);
+        cudaFree(this->flag);
     }
 
     void NativeNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {

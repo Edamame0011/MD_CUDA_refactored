@@ -26,7 +26,6 @@ namespace md {
             int max_neighbours;
             DeviceVec3 nl_conf;
             md::neighbour::Top2* top2;
-            bool* flag;
 
             NeighbourList(int n_atoms, int max_neighbours_);
         };

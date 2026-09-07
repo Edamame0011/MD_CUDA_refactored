@@ -34,9 +34,11 @@
 // #include <md/thermostats/KinEnergyCalculator.hpp>
 #include <md/observers/TrajectoryExporter.hpp>
 #include <md/neighbour/CellList.hpp>
+#include <md/neighbour/CellListNoGraph.hpp>
 #include <md/neighbour/NeighbourList.hpp>
 #include <md/neighbour/NativeNeighbourList.hpp>
 #include <md/neighbour/CellListNeighbourList.hpp>
+#include <md/neighbour/CellListNeighbourListNoGraph.hpp>
 
 #include <cmath>
 #include <fstream>
@@ -123,15 +125,8 @@ void SimulationRunner::run() {
             // captured.  Re-capture one MD step at a time so its temperature is
             // refreshed; constant-temperature and NVE runs keep the fast path.
             const float simulation_time = s_setting.at("simulation_time").get<float>();
-            const int log_step = s_setting.value("log_step", 1000);
-            if (dynamic_cast<md::temperature_schedulers::LinearScheduler*>(scheduler.get()) != nullptr) {
-                const int steps = static_cast<int>(simulation_time / simstate->dt);
-                for (int i = 0; i < steps; ++i) {
-                    simulator.run(simstate->dt, 1, log_step);
-                }
-            } else {
-                simulator.run(simulation_time, s_setting.value("use_graph", 100), log_step);
-            }
+            const int log_step = s_setting.value("log_step", 10000);
+            simulator.run(simulation_time, use_graphs, log_step);
 
         } /*else if (step.contains("minimize")) {
             json mi_setting = step.at("minimize");
@@ -387,6 +382,7 @@ void SimulationRunner::build_ensemble(const json& e_setting) {
 
 void SimulationRunner::build_interaction(const json& i_setting) {
     use_cell_list = i_setting.value("cell_list", false);
+    use_graphs = i_setting.value("use_graph", 0);
 
     json n_setting = i_setting.at("neighbour_list");
     float cutoff = n_setting.value("cutoff", 5.0f);
@@ -400,13 +396,21 @@ void SimulationRunner::build_interaction(const json& i_setting) {
         int Mz = std::max(3, (int)(lattice[2] / (cutoff + margin)));
         std::array<int, 3> M = {Mx, My, Mz};
 
-        // cell listの初期化
-        this->cl = std::make_unique<CellList>(M, *state, *cell);
+        if (use_graphs > 0) {
+            // cell listの初期化
+            this->cl = std::make_unique<CellList>(M, *state, *cell);
 
-        // neighbour listの初期化
-        this->nl = std::make_unique<md::neighbour::CellListNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin, *cl);
-        nl->generate(*state, *simstate, *cell);
+            // neighbour listの初期化
+            this->nl = std::make_unique<md::neighbour::CellListNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin, *cl);
+            nl->generate(*state, *simstate, *cell);
 
+        } else {
+            // グラフを使わない場合
+            this->cl = std::make_unique<CellListNoGraph>(M, *state, *cell);
+
+            this->nl = std::make_unique<md::neighbour::CellListNeighbourListNoGraph>(state->n_atoms, max_neighbours, cutoff, margin, cl.get());
+            nl->generate(*state, *simstate, *cell);
+        }
     } else {
         // neighbour listの初期化
         this->nl = std::make_unique<md::neighbour::NativeNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin);

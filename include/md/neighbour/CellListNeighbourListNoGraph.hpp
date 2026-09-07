@@ -2,24 +2,29 @@
 
 #include <md/neighbour/NeighbourList.hpp>
 
-namespace md { 
+namespace md {
+    class CellList;
     class Cell;
+    struct Top2;
 
     namespace neighbour {
-        class NativeNeighbourList : public NeighbourList {
+        class CellListNeighbourListNoGraph : public NeighbourList {
             public:
-                NativeNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_);
-                ~NativeNeighbourList();
+                CellListNeighbourListNoGraph(int n_atoms, int max_neighbours, float cutoff, float margin, CellList* cl);
+                ~CellListNeighbourListNoGraph();
 
                 void generate(State& state, SimState& simstate, Cell& cell) override;
                 void check(State& state, SimState& simstate, Cell& cell) override;
 
-                NativeNeighbourList(const NeighbourList&) = delete;
-                NativeNeighbourList& operator=(const NeighbourList&) = delete;
+                CellListNeighbourListNoGraph(const NeighbourList&) = delete;
+                CellListNeighbourListNoGraph& operator=(const NeighbourList&) = delete;
+
             private:
+                CellList* cl;
+
                 float cutoff, margin;
 
-                bool* flag;
+                bool flag = false;
 
                 // cub用のバッファとそのサイズ
                 void* d_temp_storage = nullptr;

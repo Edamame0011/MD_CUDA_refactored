@@ -1,10 +1,10 @@
-#include <md/neighbour/CellList.hpp>
+#include <md/neighbour/CellListNoGraph.hpp>
 
 #include <md/core/State.hpp>
-#include <md/core/Cell.cuh>
 #include <md/core/constant.h>
-
+#include <md/core/Cell.cuh>
 #include <cub/cub.cuh>
+#include <thrust/binary_search.h>
 
 using Cell = md::Cell;
 using DeviceVec3 = md::DeviceVec3;
@@ -12,7 +12,6 @@ using DeviceInt3 = md::DeviceInt3;
 
 namespace {
     __global__ void calc_cell_id_kernel(
-        const bool* flag, 
         const DeviceVec3 pos, 
         int* __restrict__ cell_id, 
         int* __restrict__ perm, 
@@ -25,8 +24,6 @@ namespace {
         const float cell_size_inv_y, 
         const float cell_size_inv_z
     ) {
-        if (!*flag) return;
-
         int idx = threadIdx.x + blockDim.x * blockIdx.x;
         if (idx >= num_atoms) return;
 
@@ -48,7 +45,6 @@ namespace {
     }
 
     __global__ void apply_sort_kernel(
-        const bool* flag, 
         const int* __restrict__ perm, 
         const DeviceVec3 pos, 
         const DeviceVec3 vel, 
@@ -66,8 +62,6 @@ namespace {
         int* __restrict__ particle_id_buffer, 
         const int num_atoms
     ) {
-        if (!*flag) return;
-
         int idx = threadIdx.x + blockDim.x * blockIdx.x;
         if (idx >= num_atoms) return;
 
@@ -87,116 +81,14 @@ namespace {
         species_buffer[idx] = species[old_idx];
         particle_id_buffer[idx] = particle_id[old_idx];
     }
-
-    __global__ void commit_sort_kernel(
-        const bool* flag, 
-        DeviceVec3 pos, 
-        DeviceVec3 vel, 
-        DeviceInt3 image,
-        float* __restrict__ mass, 
-        float* __restrict__ mass_inv, 
-        int* __restrict__ species, 
-        int* __restrict__ particle_id, 
-        const DeviceVec3 pos_buffer, 
-        const DeviceVec3 vel_buffer, 
-        const DeviceInt3 image_buffer,
-        const float* __restrict__ mass_buffer, 
-        const float* __restrict__ mass_inv_buffer, 
-        const int* __restrict__ species_buffer, 
-        const int* __restrict__ particle_id_buffer, 
-        const int num_atoms
-    ) {
-        if (!*flag) return;
-
-        int idx = threadIdx.x + blockDim.x * blockIdx.x;
-        if (idx >= num_atoms) return;
-
-        pos.x[idx] = pos_buffer.x[idx];
-        pos.y[idx] = pos_buffer.y[idx];
-        pos.z[idx] = pos_buffer.z[idx];
-        vel.x[idx] = vel_buffer.x[idx];
-        vel.y[idx] = vel_buffer.y[idx];
-        vel.z[idx] = vel_buffer.z[idx];
-        image.x[idx] = image_buffer.x[idx];
-        image.y[idx] = image_buffer.y[idx];
-        image.z[idx] = image_buffer.z[idx];
-        mass[idx] = mass_buffer[idx];
-        mass_inv[idx] = mass_inv_buffer[idx];
-        species[idx] = species_buffer[idx];
-        particle_id[idx] = particle_id_buffer[idx];
-    }
-
-    __global__ void calc_cell_start_kernel(
-        const bool* flag, 
-        const int* sorted_cell_id,
-        int* cell_start_idx,
-        int N,
-        int num_cells
-    ) {
-        if (!*flag) return;
-
-        int cell = blockIdx.x * blockDim.x + threadIdx.x;
-
-        if (cell > num_cells) return;
-
-        // lower_bound(sorted_cell_id, cell)
-        int lo = 0;
-        int hi = N;
-
-        while (lo < hi) {
-            int mid = (lo + hi) / 2;
-
-            if (sorted_cell_id[mid] < cell)
-                lo = mid + 1;
-            else
-                hi = mid;
-        }
-
-        cell_start_idx[cell] = lo;
-    }
 }
 
 namespace md {
-    CellList::CellList(std::array<int, 3> M_, State& state, Cell& cell)
-    : M(M_) {
-        const auto N = state.n_atoms;
-        const auto& lattice = cell.get_lattice();
-
-        num_cells = M[0] * M[1] * M[2];
-        for (size_t i = 0; i < 3; i ++) {
-            cell_size[i] = (float)(lattice[i] / M[i]);
-        }
-
-        cell_id.resize(N);
-        perm.resize(N);
-        sorted_cell_id.resize(N);
-        sorted_perm.resize(N);
-        cell_start_idx.resize(num_cells + 1);
-
-        // cubのバッファを確保
-        cub::DeviceRadixSort::SortPairs(
-            d_temp_storage, 
-            temp_storage_bytes, 
-            thrust::raw_pointer_cast(cell_id.data()), 
-            thrust::raw_pointer_cast(sorted_cell_id.data()), 
-            thrust::raw_pointer_cast(perm.data()), 
-            thrust::raw_pointer_cast(sorted_perm.data()), 
-            N
-        );
-
-        cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    }
-
-    CellList::~CellList() {
-        cudaFree(d_temp_storage);
-    }
-
-    void CellList::generate(State& state, SimState& simstate, Cell& cell, bool* flag) {
+    void CellListNoGraph::generate(State& state, SimState& simstate, Cell& cell, bool* flag) {
         auto N = state.n_atoms;
         int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
 
         calc_cell_id_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
             state.pos, 
             thrust::raw_pointer_cast(cell_id.data()), 
             thrust::raw_pointer_cast(perm.data()), 
@@ -211,7 +103,7 @@ namespace md {
         );
     }
 
-    void CellList::sort(State& state, SimState& simstate, bool* flag) {
+    void CellListNoGraph::sort(State& state, SimState& simstate, bool* flag) {
         auto N = state.n_atoms;
 
         int* cell_id_ptr = thrust::raw_pointer_cast(cell_id.data());
@@ -236,7 +128,6 @@ namespace md {
         );
 
         apply_sort_kernel<<<num_blocks_sort, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
             sorted_perm_ptr, 
             state.pos, 
             state.vel, 
@@ -255,34 +146,17 @@ namespace md {
             N
         );
 
-        // 元配列の書き換え（cudaGraphs対応のためswapではなく書き換える）
-        commit_sort_kernel<<<num_blocks_sort, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
-            state.pos, 
-            state.vel, 
-            state.image,
-            state.mass, 
-            state.mass_inv, 
-            state.species, 
-            state.particle_id, 
-            state.pos_buffer, 
-            state.vel_buffer, 
-            state.image_buffer,
-            state.mass_buffer, 
-            state.mass_inv_buffer, 
-            state.species_buffer, 
-            state.particle_id_buffer, 
-            N
-        );
+        state.swap_buffer();
 
         // セルの始まり・終わりの位置を取得
-        int num_blocks_cell = (num_cells + NUM_THREADS) / NUM_THREADS;
-        calc_cell_start_kernel<<<num_blocks_cell, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
-            sorted_cell_id_ptr, 
-            cell_start_idx_ptr, 
-            N, 
-            num_cells
+        thrust::counting_iterator<int> search_begin(0);
+        thrust::lower_bound(
+            thrust::cuda::par_nosync.on(simstate.stream), 
+            sorted_cell_id.begin(), 
+            sorted_cell_id.begin() + N, 
+            search_begin, 
+            search_begin + num_cells + 1, 
+            cell_start_idx.begin()
         );
     }
 }

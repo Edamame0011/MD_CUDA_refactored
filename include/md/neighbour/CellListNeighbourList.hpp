@@ -24,6 +24,8 @@ namespace md {
 
                 float cutoff, margin;
 
+                bool* flag;
+
                 // cub用のバッファとそのサイズ
                 void* d_temp_storage = nullptr;
                 size_t temp_storage_bytes = 0;

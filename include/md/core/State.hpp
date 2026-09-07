@@ -20,7 +20,7 @@ namespace md {
         int* particle_id;       // 現在のインデックス -> ID
 
         // ソートのためのバッファ
-        DeviceVec3 pos_buffer, vel_buffer;
+        DeviceVec3 pos_buffer, vel_buffer, force_buffer;
         DeviceInt3 image_buffer;
         float *mass_buffer, *mass_inv_buffer;
         int *species_buffer, *particle_id_buffer;

@@ -55,7 +55,7 @@ namespace md::neighbour {
         __host__ __device__ Top2 operator () (const Top2& a, const Top2& b) const {
             float max1 = fmaxf(a.max1, b.max1);
             float max2 = fmaxf(fminf(a.max1, b.max1), fmaxf(a.max2, b.max2));
-            return Top2(max1, max2);        
+            return Top2(max1, max2);
         }
     };
 };

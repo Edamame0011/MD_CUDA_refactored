@@ -32,7 +32,7 @@ namespace md {
         cudaMalloc(&this->particle_id, N * sizeof(int));
 
         // バッファの確保
-        float *pos_buffer_, *vel_buffer_;
+        float *pos_buffer_, *vel_buffer_, *force_buffer_;
         cudaMalloc(&pos_buffer_, 3 * N * sizeof(float));
         this->pos_buffer.x = pos_buffer_;
         this->pos_buffer.y = pos_buffer_ + N;
@@ -41,6 +41,15 @@ namespace md {
         this->vel_buffer.x = vel_buffer_;
         this->vel_buffer.y = vel_buffer_ + N;
         this->vel_buffer.z = vel_buffer_ + N + N;
+
+        cudaMalloc(&force_buffer_, 3 * N * sizeof(float));
+        this->force_buffer.x = force_buffer_;
+        this->force_buffer.y = force_buffer_ + N;
+        this->force_buffer.z = force_buffer_ + N + N;
+
+        cudaMalloc(&this->image_buffer.x, N * sizeof(int));
+        cudaMalloc(&this->image_buffer.y, N * sizeof(int));
+        cudaMalloc(&this->image_buffer.z, N * sizeof(int));
 
         cudaMalloc(&this->mass_buffer, N * sizeof(float));
         cudaMalloc(&this->mass_inv_buffer, N * sizeof(float));
@@ -61,6 +70,10 @@ namespace md {
         cudaFree(particle_id);
         cudaFree(pos_buffer.x);
         cudaFree(vel_buffer.x);
+        cudaFree(force_buffer.x);
+        cudaFree(image_buffer.x);
+        cudaFree(image_buffer.y);
+        cudaFree(image_buffer.z);
         cudaFree(mass_buffer);
         cudaFree(mass_inv_buffer);
         cudaFree(species_buffer);
@@ -113,6 +126,8 @@ namespace md {
         std::swap(vel.z, vel_buffer.z);
         std::swap(mass, mass_buffer);
         std::swap(mass_inv, mass_inv_buffer);
+        std::swap(species, species_buffer);
+        std::swap(particle_id, particle_id_buffer);
     }
 
     SimState::SimState() {

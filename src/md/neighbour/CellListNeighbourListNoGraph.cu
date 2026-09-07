@@ -1,4 +1,4 @@
-#include <md/neighbour/CellListNeighbourList.hpp>
+#include <md/neighbour/CellListNeighbourListNoGraph.hpp>
 
 #include <md/core/Cell.cuh>
 #include <md/core/constant.h>
@@ -13,12 +13,11 @@ using DeviceVec3 = md::DeviceVec3;
 
 namespace cg = cooperative_groups;
 
-// 取り敢えず8スレッド毎に並列化（他の数字の方が良いかは未検証）
-constexpr int TILE_SIZE = 8;
+// 取り敢えず4スレッド毎に並列化（他の数字の方が良いかは未検証）
+constexpr int TILE_SIZE = 4;
 
 namespace {
     __global__ void generate_nl_kernel(
-        const bool* __restrict__ flag, 
         const DeviceVec3 pos, 
         const int num_atoms, 
         const int max_neighbours, 
@@ -32,8 +31,6 @@ namespace {
         const float cutoff_margin_sq, 
         Cell cell
     ) { 
-        if (!*flag) return;
-
         cg::thread_block block = cg::this_thread_block();
         auto tile = cg::tiled_partition<TILE_SIZE>(block);
 
@@ -150,28 +147,40 @@ namespace {
             count[idx] = min(c, max_neighbours);
         }
     }
+
+    __global__ void update_nl_conf_kernel_no_graph(
+        const DeviceVec3 pos, 
+        DeviceVec3 nl_conf, 
+        int num_atoms
+    ) {
+        int idx = threadIdx.x + blockDim.x * blockIdx.x;
+        if (idx < num_atoms) {
+            nl_conf.x[idx] = pos.x[idx];
+            nl_conf.y[idx] = pos.y[idx];
+            nl_conf.z[idx] = pos.z[idx];
+        }
+    }
+
 }
 
 namespace md::neighbour {
-    CellListNeighbourList::CellListNeighbourList(int n_atoms, int max_neighbours_, float cutoff_, float margin_, CellList& cl_) 
+    CellListNeighbourListNoGraph::CellListNeighbourListNoGraph(int n_atoms, int max_neighbours_, float cutoff_, float margin_, CellList* cl_) 
     : NeighbourList(n_atoms, max_neighbours_), cutoff(cutoff_), margin(margin_), cl(cl_) {
-        cudaMalloc(&this->flag, sizeof(bool));
-        cudaMemset(this->flag, 1, sizeof(bool));
+        this->flag = true;
     }
 
-    CellListNeighbourList::~CellListNeighbourList() {
+    CellListNeighbourListNoGraph::~CellListNeighbourListNoGraph() {
         cudaFree(d_temp_storage);
-        cudaFree(this->flag);
     }
 
-    void CellListNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {
+    void CellListNeighbourListNoGraph::generate(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
         auto cutoff_margin = cutoff + margin;
         auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
 
         // clの作成
-        cl.generate(state, simstate, cell, flag);
-        cl.sort(state, simstate, flag);
+        cl->generate(state, simstate, cell, &flag);
+        cl->sort(state, simstate, &flag);
 
         // nlの作成
         constexpr int num_tiles = NUM_THREADS / TILE_SIZE;
@@ -179,29 +188,25 @@ namespace md::neighbour {
         int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
         
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
             state.pos, 
             N, 
             max_neighbours, 
-            cl.get_M()[0], 
-            cl.get_M()[1], 
-            cl.get_M()[2], 
+            cl->get_M()[0], 
+            cl->get_M()[1], 
+            cl->get_M()[2], 
             thrust::raw_pointer_cast(list.data()), 
             thrust::raw_pointer_cast(count.data()), 
-            cl.get_cell_id(), 
-            cl.get_cell_start_idx(), 
+            cl->get_cell_id(), 
+            cl->get_cell_start_idx(), 
             cutoff_margin_sq, 
             cell
         );
 
-        update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
+        update_nl_conf_kernel_no_graph<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             state.pos, 
             nl_conf, 
             N
         );
-
-        cudaMemsetAsync(this->flag, 0, sizeof(bool), simstate.stream);
 
         // バッファの確保
         CalcDist op(
@@ -225,7 +230,7 @@ namespace md::neighbour {
         cudaMallocAsync(&d_temp_storage, temp_storage_bytes, simstate.stream);
     }
 
-    void CellListNeighbourList::check(State& state, SimState& simstate, Cell& cell) {
+    void CellListNeighbourListNoGraph::check(State& state, SimState& simstate, Cell& cell) {
         auto N = state.n_atoms;
         auto cutoff_margin = cutoff + margin;
         auto cutoff_margin_sq = cutoff_margin * cutoff_margin;
@@ -251,42 +256,38 @@ namespace md::neighbour {
         );
 
         // Top2オブジェクトの移動距離が閾値を超えているか判定し、超えていたらGenerate()を呼ぶ
-        check_top2<<<1, 1, 0, simstate.stream>>>(
-            this->top2, 
-            this->flag, 
-            margin * margin
-        );
+        Top2 h_top2;
+        cudaMemcpy(&h_top2, this->top2, sizeof(Top2), cudaMemcpyDeviceToHost);
+        if (h_top2.max1 + h_top2.max2 + 2 * sqrtf(h_top2.max1 * h_top2.max2) > margin * margin) {
+            // clの作成
+            cl->generate(state, simstate, cell, &flag);
+            cl->sort(state, simstate, &flag);
 
-        cl.generate(state, simstate, cell, flag);
-        cl.sort(state, simstate, flag);
+            // nlの作成
+            constexpr int num_tiles = NUM_THREADS / TILE_SIZE;
+            int generate_nl_num_blocks = (N + num_tiles - 1) / num_tiles;
+            int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+            
+            generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+                state.pos, 
+                N, 
+                max_neighbours, 
+                cl->get_M()[0], 
+                cl->get_M()[1], 
+                cl->get_M()[2], 
+                thrust::raw_pointer_cast(list.data()), 
+                thrust::raw_pointer_cast(count.data()), 
+                cl->get_cell_id(), 
+                cl->get_cell_start_idx(), 
+                cutoff_margin_sq, 
+                cell
+            );
 
-        constexpr int num_tiles = NUM_THREADS / TILE_SIZE;
-        int generate_nl_num_blocks = (N + num_tiles - 1) / num_tiles;
-        int update_nl_conf_num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
-
-        generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
-            state.pos, 
-            N, 
-            max_neighbours, 
-            cl.get_M()[0], 
-            cl.get_M()[1], 
-            cl.get_M()[2], 
-            thrust::raw_pointer_cast(list.data()), 
-            thrust::raw_pointer_cast(count.data()), 
-            cl.get_cell_id(), 
-            cl.get_cell_start_idx(), 
-            cutoff_margin_sq, 
-            cell
-        );
-
-        update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
-            flag, 
-            state.pos, 
-            nl_conf, 
-            N
-        );
-
-        cudaMemsetAsync(this->flag, 0, sizeof(bool), simstate.stream);
+            update_nl_conf_kernel_no_graph<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+                state.pos, 
+                nl_conf, 
+                N
+            );
+        }
     }
 }

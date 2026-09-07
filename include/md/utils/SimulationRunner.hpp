@@ -58,6 +58,7 @@ namespace md::utils {
 
             std::string unit_type = "lj";
             bool use_cell_list = false;
+            int use_graphs = 0;
 
             void configure_units(const nlohmann::json& m_setting);
             void build_state(const nlohmann::json& a_setting);
