@@ -73,16 +73,6 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
         cudaGraphExecDestroy(instance);
         cudaGraphDestroy(graph);
     } else {
-        /*
-        // 前半のみをグラフに記録
-        cudaGraph_t graph;
-        cudaGraphExec_t instance;
-        cudaStreamBeginCapture(simstate.stream, cudaStreamCaptureModeGlobal);
-        integrator->integrateStepOne(state, simstate);
-        cell.apply_pbc(state, simstate);
-        cudaStreamEndCapture(simstate.stream, &graph);
-        cudaGraphInstantiate(&instance, graph, NULL, NULL, 0);
-        */
         // シミュレーション開始時間
         auto start = std::chrono::steady_clock::now();
 
@@ -122,10 +112,5 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
         double elapsed_s = std::chrono::duration<double>(end - start).count();
 
         std::cout << "かかった時間：" << elapsed_s << "s" << std::endl;
-
-        /*
-        cudaGraphExecDestroy(instance);
-        cudaGraphDestroy(graph);
-        */
     }
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <md/thermostats/Thermostat.cuh>
+
 namespace md {
     class State;
     class SimState;

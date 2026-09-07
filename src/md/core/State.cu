@@ -128,6 +128,7 @@ namespace md {
         std::swap(mass_inv, mass_inv_buffer);
         std::swap(species, species_buffer);
         std::swap(particle_id, particle_id_buffer);
+        std::swap(image, image_buffer);
     }
 
     SimState::SimState() {
