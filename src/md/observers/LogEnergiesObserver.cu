@@ -14,7 +14,7 @@ namespace md::observers {
 
     LogEnergiesObserver::~LogEnergiesObserver() = default;
 
-    void LogEnergiesObserver::output(State& state, SimState& simstate) {
+    void LogEnergiesObserver::output(State* state, SimState& simstate) {
         if (simstate.dt * simstate.current_steps > checker) {
             printer->print_energies(state, simstate);
 
@@ -23,7 +23,7 @@ namespace md::observers {
         }
     }
 
-    void LogEnergiesObserver::init(State& state, SimState& simstate) {
+    void LogEnergiesObserver::init(State* state, SimState& simstate) {
         printer->print_energies(state, simstate);
     }
 }

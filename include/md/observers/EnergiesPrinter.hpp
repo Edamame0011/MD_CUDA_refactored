@@ -13,7 +13,7 @@ namespace md {
         class EnergiesPrinter {
             public:
                 EnergiesPrinter(Interaction* interaction, const std::string& output_path);
-                void print_energies(State& state, SimState& simstate);
+                void print_energies(State* state, SimState& simstate);
 
             private:
                 float kinetic_energy = 0.0f;

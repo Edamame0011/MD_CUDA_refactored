@@ -14,8 +14,8 @@ namespace md{
             public:
                 LogEnergiesObserver(float _interval, int _counter, Interaction* _interaction, const std::string& output_path);
                 ~LogEnergiesObserver();
-                void output(State& state, SimState& simstate) override;
-                void init(State& state, SimState& simstate) override;
+                void output(State* state, SimState& simstate) override;
+                void init(State* state, SimState& simstate) override;
             private:
                 float log_interval;
                 int counter;

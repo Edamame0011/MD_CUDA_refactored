@@ -1,4 +1,4 @@
-#include <md/integrators/LangevinIntegratorLJ.cuh>
+#include <md/integrators/LangevinIntegrator.cuh>
 
 #include <md/core/State.hpp>
 #include <md/core/constant.h>
@@ -28,7 +28,9 @@ namespace {
     __global__ void baoab_step_one(
         md::DeviceVec3 pos,
         md::DeviceVec3 vel,
-        md::DeviceVec3 force,
+        md::DeviceVec3 force, 
+        const float* __restrict__ mass, 
+        const float* __restrict__ mass_inv, 
         curandState* random_states,
         const int atom_count,
         const float dt_half,
@@ -42,12 +44,15 @@ namespace {
         }
 
         auto cs = random_states[idx];
+        const auto m = mass[idx];
+        const auto mi = mass_inv[idx];
+        const float mass_sq_inv = rsqrtf(m);
         const float c3 = sqrtf(boltzmann_constant * md::c_target_temperature * (1.0f - c1 * c1));
 
         // 速度の更新1
-        auto vx = vel.x[idx] + force.x[idx] * dt_half_conv;
-        auto vy = vel.y[idx] + force.y[idx] * dt_half_conv;
-        auto vz = vel.z[idx] + force.z[idx] * dt_half_conv;
+        auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
+        auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
+        auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
 
         // 位置の更新1
         pos.x[idx] += vx * dt_half;
@@ -60,9 +65,9 @@ namespace {
         float rz = curand_normal(&cs);
 
         // 速度の更新2
-        vx = c1 * vx + c3 * rx;
-        vy = c1 * vy + c3 * ry;
-        vz = c1 * vz + c3 * rz;
+        vx = c1 * vx + c3 * mass_sq_inv * rx;
+        vy = c1 * vy + c3 * mass_sq_inv * ry;
+        vz = c1 * vz + c3 * mass_sq_inv * rz;
     
         vel.x[idx] = vx;
         vel.y[idx] = vy;
@@ -78,24 +83,26 @@ namespace {
 
     __global__ void baoab_step_two(
         md::DeviceVec3 vel,
-        md::DeviceVec3 force,
+        md::DeviceVec3 force, 
+        const float* __restrict__ mass_inv, 
         const int atom_count,
         const float dt_half_conv
     ) {
         const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx >= atom_count) {
-            return;
-        }
+        if (idx >= atom_count) return;
+
+        float mi = mass_inv[idx];
+        const auto mi_dt_half_conv = mi * dt_half_conv;
 
         // 速度の更新3
-        vel.x[idx] += force.x[idx] * dt_half_conv;
-        vel.y[idx] += force.y[idx] * dt_half_conv;
-        vel.z[idx] += force.z[idx] * dt_half_conv; 
+        vel.x[idx] += force.x[idx] * mi_dt_half_conv;
+        vel.y[idx] += force.y[idx] * mi_dt_half_conv;
+        vel.z[idx] += force.z[idx] * mi_dt_half_conv; 
     }
 }
 
 namespace md::integrators {
-    LangevinIntegratorLJ::LangevinIntegratorLJ(
+    LangevinIntegrator::LangevinIntegrator(
         float gamma, unsigned long long seed, TemperatureScheduler* scheduler)
         : gamma_(gamma), seed_(seed), scheduler_(scheduler) {
         if (!std::isfinite(gamma_) || gamma_ < 0.0f) {
@@ -106,11 +113,11 @@ namespace md::integrators {
         }
     }
 
-    void LangevinIntegratorLJ::init(const State* state, SimState& simstate) {
+    void LangevinIntegrator::init(const State* state, SimState& simstate) {
         init(state, simstate, seed_);
     }
 
-    void LangevinIntegratorLJ::init(
+    void LangevinIntegrator::init(
         const State* state, 
         SimState& simstate, 
         unsigned long long seed
@@ -129,7 +136,7 @@ namespace md::integrators {
         );
     }
 
-    void LangevinIntegratorLJ::integrateStepOne(State* state, SimState& simstate) {
+    void LangevinIntegrator::integrateStepOne(State* state, SimState& simstate) {
         // c3の計算
         scheduler_->get_temperature(state, simstate);
 
@@ -142,6 +149,8 @@ namespace md::integrators {
             state->pos, 
             state->vel, 
             state->force, 
+            state->mass, 
+            state->mass_inv, 
             thrust::raw_pointer_cast(this->curand_state_.data()), 
             atom_count_, 
             dt_half, 
@@ -151,13 +160,14 @@ namespace md::integrators {
         );
     }
 
-    void LangevinIntegratorLJ::integrateStepTwo(State* state, SimState& simstate) {
+    void LangevinIntegrator::integrateStepTwo(State* state, SimState& simstate) {
         const float half_dt_conv = 0.5f * simstate.dt * conversion_factor;
 
         const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
         baoab_step_two<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
             state->vel, 
             state->force, 
+            state->mass_inv, 
             atom_count_, 
             half_dt_conv
         );

@@ -8,8 +8,8 @@ namespace md{
         public:
             virtual ~Observer () = default;
 
-            virtual void output(State& state, SimState& simstate) = 0;
-            virtual void init(State& state, SimState& simstate) = 0;
+            virtual void output(State* state, SimState& simstate) = 0;
+            virtual void init(State* state, SimState& simstate) = 0;
         protected:
             Observer() = default;
     };

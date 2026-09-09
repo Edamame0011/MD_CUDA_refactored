@@ -26,7 +26,7 @@ namespace {
 
 namespace md::observers {
     TrajectoryExporter::TrajectoryExporter(
-        const State& state,
+        const State* state,
         const std::string& output_path,
         Cell* cell
     ) : output_(output_path), cell_(cell) {
@@ -37,7 +37,7 @@ namespace md::observers {
             throw std::runtime_error("TrajectoryExporter: could not open output file: " + output_path);
         }
 
-        const auto n = static_cast<std::size_t>(state.n_atoms);
+        const auto n = static_cast<std::size_t>(state->n_atoms);
         positions_.resize(3 * n);
         forces_.resize(3 * n);
         images_.resize(3 * n);
@@ -45,32 +45,32 @@ namespace md::observers {
         particle_ids_.resize(n);
     }
 
-    void TrajectoryExporter::export_trajectory(const State& state) {
+    void TrajectoryExporter::export_trajectory(const State* state) {
         export_frame(state, false);
     }
 
-    void TrajectoryExporter::export_trajectory_unwrap(const State& state) {
+    void TrajectoryExporter::export_trajectory_unwrap(const State* state) {
         export_frame(state, true);
     }
 
-    void TrajectoryExporter::export_frame(const State& state, bool unwrap) {
-        const auto n = static_cast<std::size_t>(state.n_atoms);
+    void TrajectoryExporter::export_frame(const State* state, bool unwrap) {
+        const auto n = static_cast<std::size_t>(state->n_atoms);
         if (positions_.size() != 3 * n) {
             throw std::invalid_argument("TrajectoryExporter: atom count changed after construction");
         }
 
-        check_cuda(cudaMemcpy(positions_.data(), state.pos.x, n * sizeof(float), cudaMemcpyDeviceToHost), "copy x positions");
-        check_cuda(cudaMemcpy(positions_.data() + n, state.pos.y, n * sizeof(float), cudaMemcpyDeviceToHost), "copy y positions");
-        check_cuda(cudaMemcpy(positions_.data() + 2 * n, state.pos.z, n * sizeof(float), cudaMemcpyDeviceToHost), "copy z positions");
-        check_cuda(cudaMemcpy(forces_.data(), state.force.x, n * sizeof(float), cudaMemcpyDeviceToHost), "copy x forces");
-        check_cuda(cudaMemcpy(forces_.data() + n, state.force.y, n * sizeof(float), cudaMemcpyDeviceToHost), "copy y forces");
-        check_cuda(cudaMemcpy(forces_.data() + 2 * n, state.force.z, n * sizeof(float), cudaMemcpyDeviceToHost), "copy z forces");
-        check_cuda(cudaMemcpy(species_.data(), state.species, n * sizeof(int), cudaMemcpyDeviceToHost), "copy species");
-        check_cuda(cudaMemcpy(particle_ids_.data(), state.particle_id, n * sizeof(int), cudaMemcpyDeviceToHost), "copy particle IDs");
+        check_cuda(cudaMemcpy(positions_.data(), state->pos.x, n * sizeof(float), cudaMemcpyDeviceToHost), "copy x positions");
+        check_cuda(cudaMemcpy(positions_.data() + n, state->pos.y, n * sizeof(float), cudaMemcpyDeviceToHost), "copy y positions");
+        check_cuda(cudaMemcpy(positions_.data() + 2 * n, state->pos.z, n * sizeof(float), cudaMemcpyDeviceToHost), "copy z positions");
+        check_cuda(cudaMemcpy(forces_.data(), state->force.x, n * sizeof(float), cudaMemcpyDeviceToHost), "copy x forces");
+        check_cuda(cudaMemcpy(forces_.data() + n, state->force.y, n * sizeof(float), cudaMemcpyDeviceToHost), "copy y forces");
+        check_cuda(cudaMemcpy(forces_.data() + 2 * n, state->force.z, n * sizeof(float), cudaMemcpyDeviceToHost), "copy z forces");
+        check_cuda(cudaMemcpy(species_.data(), state->species, n * sizeof(int), cudaMemcpyDeviceToHost), "copy species");
+        check_cuda(cudaMemcpy(particle_ids_.data(), state->particle_id, n * sizeof(int), cudaMemcpyDeviceToHost), "copy particle IDs");
         if (unwrap) {
-            check_cuda(cudaMemcpy(images_.data(), state.image.x, n * sizeof(int), cudaMemcpyDeviceToHost), "copy x images");
-            check_cuda(cudaMemcpy(images_.data() + n, state.image.y, n * sizeof(int), cudaMemcpyDeviceToHost), "copy y images");
-            check_cuda(cudaMemcpy(images_.data() + 2 * n, state.image.z, n * sizeof(int), cudaMemcpyDeviceToHost), "copy z images");
+            check_cuda(cudaMemcpy(images_.data(), state->image.x, n * sizeof(int), cudaMemcpyDeviceToHost), "copy x images");
+            check_cuda(cudaMemcpy(images_.data() + n, state->image.y, n * sizeof(int), cudaMemcpyDeviceToHost), "copy y images");
+            check_cuda(cudaMemcpy(images_.data() + 2 * n, state->image.z, n * sizeof(int), cudaMemcpyDeviceToHost), "copy z images");
         }
 
         std::vector<int> current_index_by_id(n, -1);

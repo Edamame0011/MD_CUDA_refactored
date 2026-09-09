@@ -171,8 +171,8 @@ namespace md::neighbour {
         cudaFree(this->flag);
     }
 
-    void CellListNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {
-        auto N = state.n_atoms;
+    void CellListNeighbourList::generate(State* state, SimState& simstate, Cell& cell) {
+        auto N = state->n_atoms;
 
         // clの作成
         cl.generate(state, simstate, cell, flag);
@@ -185,8 +185,8 @@ namespace md::neighbour {
         
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
-            state.species, 
+            state->pos, 
+            state->species, 
             N, 
             num_species, 
             max_neighbours, 
@@ -203,7 +203,7 @@ namespace md::neighbour {
 
         update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             nl_conf, 
             N
         );
@@ -212,7 +212,7 @@ namespace md::neighbour {
 
         // バッファの確保
         CalcDist op(
-            state.pos, 
+            state->pos, 
             this->nl_conf, 
             cell
         );
@@ -232,12 +232,12 @@ namespace md::neighbour {
         cudaMallocAsync(&d_temp_storage, temp_storage_bytes, simstate.stream);
     }
 
-    void CellListNeighbourList::check(State& state, SimState& simstate, Cell& cell) {
-        auto N = state.n_atoms;
+    void CellListNeighbourList::check(State* state, SimState& simstate, Cell& cell) {
+        auto N = state->n_atoms;
 
         // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
         CalcDist op(
-            state.pos, 
+            state->pos, 
             this->nl_conf, 
             cell
         );
@@ -271,8 +271,8 @@ namespace md::neighbour {
 
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
-            state.species, 
+            state->pos, 
+            state->species, 
             N, 
             num_species, 
             max_neighbours, 
@@ -289,7 +289,7 @@ namespace md::neighbour {
 
         update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             nl_conf, 
             N
         );

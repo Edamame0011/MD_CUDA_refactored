@@ -8,8 +8,8 @@ namespace md {
         public:
             virtual ~Integrator() = default;
     
-            virtual void integrateStepOne(State& state, SimState& simstate) = 0;    // 1段目の更新
-            virtual void integrateStepTwo(State& state, SimState& simstate) = 0;    // 2段目の更新
+            virtual void integrateStepOne(State* state, SimState& simstate) = 0;    // 1段目の更新
+            virtual void integrateStepTwo(State* state, SimState& simstate) = 0;    // 2段目の更新
 
         protected:
             Integrator() = default;

@@ -41,23 +41,24 @@ namespace md::observers {
 
         ofs << "time, kinetic energy, potential energy, total energy, temperature" << std::endl;
     }
-    void EnergiesPrinter::print_energies(State& state, SimState& simstate) {
-        auto N = state.n_atoms;
+    void EnergiesPrinter::print_energies(State* state, SimState& simstate) {
+        auto N = state->n_atoms;
 
         float kinetic_energy = thrust::transform_reduce(
             thrust::device, 
             thrust::make_counting_iterator<int>(0), 
             thrust::make_counting_iterator<int>(N),  
             CalcKinEnergy(
-                state.vel, 
-                state.mass
+                state->vel, 
+                state->mass
             ), 
             0.0f, 
             thrust::plus<float>()
         );
+        kinetic_energy /= conversion_factor;
         float potential_energy = interaction->calc_potential(state, simstate);
 
-        int dof = 3 * state.n_atoms;
+        int dof = 3 * state->n_atoms;
         float temperature = 2 * kinetic_energy / (dof * boltzmann_constant);
 
         ofs << std::setprecision(7) << std::scientific << simstate.current_steps * simstate.dt << ", "

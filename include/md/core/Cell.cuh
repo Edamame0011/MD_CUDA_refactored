@@ -22,7 +22,7 @@ namespace md{
                 *z -= lattice.z * floorf(*z * lattice_inv.z);
             }
 
-            void apply_pbc(State& state, SimState& simstate) const;
+            void apply_pbc(State* state, SimState& simstate) const;
 
             std::array<float, 3> get_lattice() { return std::array<float, 3>{ lattice.x, lattice.y, lattice.z }; }
         private:

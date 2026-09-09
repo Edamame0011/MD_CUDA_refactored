@@ -13,8 +13,8 @@ namespace md {
                 CellListNeighbourListNoGraph(int n_atoms, int max_neighbours, std::vector<float> cutoff_, float margin, CellList* cl);
                 ~CellListNeighbourListNoGraph();
 
-                void generate(State& state, SimState& simstate, Cell& cell) override;
-                void check(State& state, SimState& simstate, Cell& cell) override;
+                void generate(State* state, SimState& simstate, Cell& cell) override;
+                void check(State* state, SimState& simstate, Cell& cell) override;
 
                 CellListNeighbourListNoGraph(const NeighbourList&) = delete;
                 CellListNeighbourListNoGraph& operator=(const NeighbourList&) = delete;

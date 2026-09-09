@@ -13,8 +13,8 @@ namespace md {
                 CellListNeighbourList(int n_atoms, int max_neighbours, std::vector<float> cutoff, float margin, CellList& cl);
                 ~CellListNeighbourList();
 
-                void generate(State& state, SimState& simstate, Cell& cell) override;
-                void check(State& state, SimState& simstate, Cell& cell) override;
+                void generate(State* state, SimState& simstate, Cell& cell) override;
+                void check(State* state, SimState& simstate, Cell& cell) override;
 
                 CellListNeighbourList(const NeighbourList&) = delete;
                 CellListNeighbourList& operator=(const NeighbourList&) = delete;

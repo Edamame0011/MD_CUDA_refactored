@@ -239,9 +239,9 @@ namespace md::interactions {
         params.deriv_1st_LJpotential_cutoff = h_deriv_1st_LJpotential_cutoff;
     }
 
-    void LJPotential::calc_force(State& state, SimState& simstate) {
+    void LJPotential::calc_force(State* state, SimState& simstate) {
         nl->check(state, simstate, cell);
-        auto N = state.n_atoms;
+        auto N = state->n_atoms;
 
         int num_warps = NUM_THREADS / 32;
         int num_blocks = (N + num_warps - 1) / num_warps;
@@ -259,9 +259,9 @@ namespace md::interactions {
             num_species, 
             N, 
             nl->get_max_neighbours(), 
-            state.pos, 
-            state.force, 
-            state.species, 
+            state->pos, 
+            state->force, 
+            state->species, 
             view, 
             nl->get_list(), 
             nl->get_count(), 
@@ -269,9 +269,9 @@ namespace md::interactions {
         );
     }
 
-    float LJPotential::calc_potential(State& state, SimState& simstate){
+    float LJPotential::calc_potential(State* state, SimState& simstate){
         nl->check(state, simstate, cell);
-        auto N = state.n_atoms;
+        auto N = state->n_atoms;
 
         lj_params_view view = {
             thrust::raw_pointer_cast(params.sigma.data()), 
@@ -288,8 +288,8 @@ namespace md::interactions {
             thrust::make_counting_iterator<int>(0), 
             thrust::make_counting_iterator<int>(N), 
             CalcPotential(
-                state.pos, 
-                state.species, 
+                state->pos, 
+                state->species, 
                 view, 
                 num_species, 
                 nl->get_max_neighbours(),

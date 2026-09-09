@@ -12,8 +12,8 @@ namespace md {
     
     class NeighbourList {
         public:
-            virtual void generate(State& state, SimState& simstate, Cell& cell) = 0;
-            virtual void check(State& state, SimState& simstate, Cell& cell) = 0;
+            virtual void generate(State* state, SimState& simstate, Cell& cell) = 0;
+            virtual void check(State* state, SimState& simstate, Cell& cell) = 0;
 
             int* get_list() { return thrust::raw_pointer_cast(list.data()); }
             int* get_count() { return thrust::raw_pointer_cast(count.data()); }

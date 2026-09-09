@@ -8,13 +8,15 @@ namespace md {
     class Thermostat;
 
     namespace integrators {
-        class ConstantVolumeLJ : public Integrator {
+        class ConstantVolume : public Integrator {
             public: 
-                ConstantVolumeLJ(Thermostat* thermostat_) : thermostat(thermostat_) {}
+                ConstantVolume(Thermostat* thermostat_) : thermostat(thermostat_) {}
 
                 void integrateStepOne(State* state, SimState& simstate) override;
                 void integrateStepTwo(State* state, SimState& simstate) override;
 
+                ConstantVolume(const ConstantVolume&) = delete;
+                ConstantVolume& operator=(const ConstantVolume&) = delete;
             private:
                 Thermostat* thermostat;
         };

@@ -15,13 +15,13 @@ namespace md::observers {
     class TrajectoryExporter {
         public:
             // particle_id and image must have been initialized by the caller.
-            TrajectoryExporter(const State& state, const std::string& output_path, Cell* cell);
+            TrajectoryExporter(const State* state, const std::string& output_path, Cell* cell);
 
-            void export_trajectory(const State& state);
-            void export_trajectory_unwrap(const State& state);
+            void export_trajectory(const State* state);
+            void export_trajectory_unwrap(const State* state);
 
         private:
-            void export_frame(const State& state, bool unwrap);
+            void export_frame(const State* state, bool unwrap);
 
             std::ofstream output_;
             Cell* cell_;

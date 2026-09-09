@@ -12,8 +12,8 @@ namespace md {
                 NativeNeighbourList(int n_atoms, int max_neighbours, std::vector<float> cutoff, float margin);
                 ~NativeNeighbourList();
 
-                void generate(State& state, SimState& simstate, Cell& cell) override;
-                void check(State& state, SimState& simstate, Cell& cell) override;
+                void generate(State* state, SimState& simstate, Cell& cell) override;
+                void check(State* state, SimState& simstate, Cell& cell) override;
 
                 NativeNeighbourList(const NeighbourList&) = delete;
                 NativeNeighbourList& operator=(const NeighbourList&) = delete;

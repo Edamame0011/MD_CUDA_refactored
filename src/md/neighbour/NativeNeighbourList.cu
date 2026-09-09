@@ -113,8 +113,8 @@ namespace md::neighbour {
         cudaFree(this->flag);
     }
 
-    void NativeNeighbourList::generate(State& state, SimState& simstate, Cell& cell) {
-        auto N = state.n_atoms;
+    void NativeNeighbourList::generate(State* state, SimState& simstate, Cell& cell) {
+        auto N = state->n_atoms;
 
         // nlの作成
         int num_warps = NUM_THREADS / WARP_SIZE;
@@ -122,9 +122,9 @@ namespace md::neighbour {
         
         generate_nl_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             nl_conf, 
-            state.species, 
+            state->species, 
             N, 
             num_species, 
             max_neighbours, 
@@ -138,7 +138,7 @@ namespace md::neighbour {
 
         // バッファの確保
         CalcDist op(
-            state.pos, 
+            state->pos, 
             this->nl_conf, 
             cell
         );
@@ -158,12 +158,12 @@ namespace md::neighbour {
         cudaMallocAsync(&d_temp_storage, temp_storage_bytes, simstate.stream);
     }
 
-    void NativeNeighbourList::check(State& state, SimState& simstate, Cell& cell) {
-        auto N = state.n_atoms;
+    void NativeNeighbourList::check(State* state, SimState& simstate, Cell& cell) {
+        auto N = state->n_atoms;
 
         // 移動距離の大きい順に2粒子の移動距離を表すTop2オブジェクトを計算
         CalcDist op(
-            state.pos, 
+            state->pos, 
             this->nl_conf, 
             cell
         );
@@ -194,9 +194,9 @@ namespace md::neighbour {
 
         generate_nl_kernel<<<generate_nl_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             nl_conf, 
-            state.species, 
+            state->species, 
             N, 
             num_species, 
             max_neighbours, 
@@ -208,7 +208,7 @@ namespace md::neighbour {
 
         update_nl_conf_kernel<<<update_nl_conf_num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             nl_conf, 
             N
         );

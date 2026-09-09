@@ -16,9 +16,9 @@ namespace md {
                 BussiThermostat(float tau, TemperatureScheduler* scheduler);
                 ~BussiThermostat();
 
-                void init(State& state, SimState& simstate, unsigned long long seed);
-                void stepOne(State& state, SimState& simstate) override;
-                void stepTwo(State& state, SimState& simstate) override;
+                void init(State* state, SimState& simstate, unsigned long long seed);
+                void stepOne(State* state, SimState& simstate) override;
+                void stepTwo(State* state, SimState& simstate) override;
 
                 BussiThermostat(const BussiThermostat&) = delete;
                 BussiThermostat& operator=(const BussiThermostat&) = delete;

@@ -26,15 +26,15 @@ namespace md::thermostats {
             NHC1(float tau, TemperatureScheduler* scheduler);
             ~NHC1();
 
-            void init(State& state, SimState& simstate);
-            void stepOne(State& state, SimState& simstate) override;
-            void stepTwo(State& state, SimState& simstate) override;
+            void init(State* state, SimState& simstate);
+            void stepOne(State* state, SimState& simstate) override;
+            void stepTwo(State* state, SimState& simstate) override;
 
             NHC1(const NHC1&) = delete;
             NHC1& operator=(const NHC1&) = delete;
 
         private:
-            void apply(State& state, SimState& simstate);
+            void apply(State* state, SimState& simstate);
 
             float tau_;
             int degrees_of_freedom_ = 0;

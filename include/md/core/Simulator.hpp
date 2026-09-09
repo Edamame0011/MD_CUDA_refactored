@@ -11,7 +11,7 @@ namespace md {
     class Simulator {
         public:
             Simulator(
-                State& state_, 
+                State* state_, 
                 SimState& simstate_, 
                 Interaction *interaction_, 
                 Integrator *integrator_, 
@@ -23,7 +23,7 @@ namespace md {
             void run(float tsim, int loop_per_graph=100, int log_step=1000);
         
         private:
-            State& state;
+            State* state;
             SimState& simstate;
             Cell& cell;
             Interaction* interaction;

@@ -10,11 +10,11 @@ namespace md {
 namespace md::thermostats {
     class KinEnergyCalculator final {
         public:
-            explicit KinEnergyCalculator(const State& state);
+            explicit KinEnergyCalculator(const State* state);
             ~KinEnergyCalculator();
 
-            void calc_kinetic_energy(const State& state, SimState& simstate);
-            float calc_kinetic_energy_host(const State& state, SimState& simstate);
+            void calc_kinetic_energy(const State* state, SimState& simstate);
+            float calc_kinetic_energy_host(const State* state, SimState& simstate);
 
             float* device_kinetic_energy() noexcept { return d_kinetic_energy_; }
             const float* device_kinetic_energy() const noexcept { return d_kinetic_energy_; }

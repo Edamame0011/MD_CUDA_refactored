@@ -53,15 +53,11 @@ namespace {
         const DeviceVec3 pos, 
         const DeviceVec3 vel, 
         const DeviceInt3 image,
-        const float* __restrict__ mass, 
-        const float* __restrict__ mass_inv, 
         const int* __restrict__ species, 
         const int* __restrict__ particle_id, 
         DeviceVec3 pos_buffer, 
         DeviceVec3 vel_buffer, 
         DeviceInt3 image_buffer,
-        float* __restrict__ mass_buffer, 
-        float* __restrict__ mass_inv_buffer, 
         int* __restrict__ species_buffer, 
         int* __restrict__ particle_id_buffer, 
         const int num_atoms
@@ -82,8 +78,6 @@ namespace {
         image_buffer.x[idx] = image.x[old_idx];
         image_buffer.y[idx] = image.y[old_idx];
         image_buffer.z[idx] = image.z[old_idx];
-        mass_buffer[idx] = mass[old_idx];
-        mass_inv_buffer[idx] = mass_inv[old_idx];
         species_buffer[idx] = species[old_idx];
         particle_id_buffer[idx] = particle_id[old_idx];
     }
@@ -93,15 +87,11 @@ namespace {
         DeviceVec3 pos, 
         DeviceVec3 vel, 
         DeviceInt3 image,
-        float* __restrict__ mass, 
-        float* __restrict__ mass_inv, 
         int* __restrict__ species, 
         int* __restrict__ particle_id, 
         const DeviceVec3 pos_buffer, 
         const DeviceVec3 vel_buffer, 
         const DeviceInt3 image_buffer,
-        const float* __restrict__ mass_buffer, 
-        const float* __restrict__ mass_inv_buffer, 
         const int* __restrict__ species_buffer, 
         const int* __restrict__ particle_id_buffer, 
         const int num_atoms
@@ -120,8 +110,6 @@ namespace {
         image.x[idx] = image_buffer.x[idx];
         image.y[idx] = image_buffer.y[idx];
         image.z[idx] = image_buffer.z[idx];
-        mass[idx] = mass_buffer[idx];
-        mass_inv[idx] = mass_inv_buffer[idx];
         species[idx] = species_buffer[idx];
         particle_id[idx] = particle_id_buffer[idx];
     }
@@ -157,9 +145,9 @@ namespace {
 }
 
 namespace md {
-    CellList::CellList(std::array<int, 3> M_, State& state, Cell& cell)
+    CellList::CellList(std::array<int, 3> M_, State* state, Cell& cell)
     : M(M_) {
-        const auto N = state.n_atoms;
+        const auto N = state->n_atoms;
         const auto& lattice = cell.get_lattice();
 
         num_cells = M[0] * M[1] * M[2];
@@ -191,13 +179,13 @@ namespace md {
         cudaFree(d_temp_storage);
     }
 
-    void CellList::generate(State& state, SimState& simstate, Cell& cell, bool* flag) {
-        auto N = state.n_atoms;
+    void CellList::generate(State* state, SimState& simstate, Cell& cell, bool* flag) {
+        auto N = state->n_atoms;
         int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
 
         calc_cell_id_kernel<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
+            state->pos, 
             thrust::raw_pointer_cast(cell_id.data()), 
             thrust::raw_pointer_cast(perm.data()), 
             N, 
@@ -211,8 +199,8 @@ namespace md {
         );
     }
 
-    void CellList::sort(State& state, SimState& simstate, bool* flag) {
-        auto N = state.n_atoms;
+    void CellList::sort(State* state, SimState& simstate, bool* flag) {
+        auto N = state->n_atoms;
 
         int* cell_id_ptr = thrust::raw_pointer_cast(cell_id.data());
         int* perm_ptr = thrust::raw_pointer_cast(perm.data());
@@ -238,40 +226,32 @@ namespace md {
         apply_sort_kernel<<<num_blocks_sort, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
             sorted_perm_ptr, 
-            state.pos, 
-            state.vel, 
-            state.image,
-            state.mass, 
-            state.mass_inv, 
-            state.species, 
-            state.particle_id, 
-            state.pos_buffer, 
-            state.vel_buffer, 
-            state.image_buffer,
-            state.mass_buffer, 
-            state.mass_inv_buffer, 
-            state.species_buffer, 
-            state.particle_id_buffer, 
+            state->pos, 
+            state->vel, 
+            state->image,
+            state->species, 
+            state->particle_id, 
+            state->pos_buffer, 
+            state->vel_buffer, 
+            state->image_buffer,
+            state->species_buffer, 
+            state->particle_id_buffer, 
             N
         );
 
         // 元配列の書き換え（cudaGraphs対応のためswapではなく書き換える）
         commit_sort_kernel<<<num_blocks_sort, NUM_THREADS, 0, simstate.stream>>>(
             flag, 
-            state.pos, 
-            state.vel, 
-            state.image,
-            state.mass, 
-            state.mass_inv, 
-            state.species, 
-            state.particle_id, 
-            state.pos_buffer, 
-            state.vel_buffer, 
-            state.image_buffer,
-            state.mass_buffer, 
-            state.mass_inv_buffer, 
-            state.species_buffer, 
-            state.particle_id_buffer, 
+            state->pos, 
+            state->vel, 
+            state->image,
+            state->species, 
+            state->particle_id, 
+            state->pos_buffer, 
+            state->vel_buffer, 
+            state->image_buffer,
+            state->species_buffer, 
+            state->particle_id_buffer, 
             N
         );
 

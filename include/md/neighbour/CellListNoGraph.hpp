@@ -11,7 +11,7 @@ namespace md {
         public:
             using CellList::CellList;
 
-            void generate(State& state, SimState& simstate, Cell& cell, bool* flag) override;
-            void sort(State& state, SimState& simstate, bool* flag) override;
+            void generate(State* state, SimState& simstate, Cell& cell, bool* flag) override;
+            void sort(State* state, SimState& simstate, bool* flag) override;
     };
 }

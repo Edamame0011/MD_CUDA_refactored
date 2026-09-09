@@ -9,9 +9,9 @@ namespace md {
     class TemperatureScheduler;
 
     namespace integrators {
-        class LangevinIntegratorLJ : public Integrator {
+        class LangevinIntegrator : public Integrator {
             public:
-                LangevinIntegratorLJ(
+                LangevinIntegrator(
                     float gamma, unsigned long long seed, TemperatureScheduler* scheduler);
 
                 void init(const State* state, SimState& simstate);
@@ -20,8 +20,8 @@ namespace md {
                 void integrateStepOne(State* state, SimState& simstate) override;
                 void integrateStepTwo(State* state, SimState& simstate) override;
 
-                LangevinIntegratorLJ(const LangevinIntegratorLJ&) = delete;
-                LangevinIntegratorLJ& operator=(const LangevinIntegratorLJ&) = delete;
+                LangevinIntegrator(const LangevinIntegrator&) = delete;
+                LangevinIntegrator& operator=(const LangevinIntegrator&) = delete;
 
             private:
                 float gamma_;

@@ -1,4 +1,4 @@
-#include <md/integrators/ConstantVolumeLJ.hpp>
+#include <md/integrators/ConstantVolume.hpp>
 
 #include <md/core/constant.h>
 #include <md/core/State.hpp>
@@ -13,15 +13,18 @@ namespace {
         const int n_atoms, 
         DeviceVec3 pos, 
         DeviceVec3 vel, 
-        const DeviceVec3 force
+        const DeviceVec3 force, 
+        const float* __restrict__ mass_inv
     ) {
         int idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >= n_atoms) return;
 
+        const auto mi = mass_inv[idx];
+
         // 速度の更新
-        const auto vx = vel.x[idx] + force.x[idx] * dt_half_conv;
-        const auto vy = vel.y[idx] + force.y[idx] * dt_half_conv;
-        const auto vz = vel.z[idx] + force.z[idx] * dt_half_conv;
+        const auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
+        const auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
+        const auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
 
         vel.x[idx] = vx;
         vel.y[idx] = vy;
@@ -37,20 +40,23 @@ namespace {
         const float dt_half_conv, 
         const int n_atoms, 
         DeviceVec3 vel, 
-        const DeviceVec3 force
+        const DeviceVec3 force, 
+        const float* __restrict__ mass_inv
     ) {
         int idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >= n_atoms) return;
 
+        const auto mi = mass_inv[idx];
+
         // 速度の更新
-        vel.x[idx] += force.x[idx] * dt_half_conv;
-        vel.y[idx] += force.y[idx] * dt_half_conv;
-        vel.z[idx] += force.z[idx] * dt_half_conv;
+        vel.x[idx] += force.x[idx] * mi * dt_half_conv;
+        vel.y[idx] += force.y[idx] * mi * dt_half_conv;
+        vel.z[idx] += force.z[idx] * mi * dt_half_conv;
     }
 }
 
 namespace md::integrators {    
-    void ConstantVolumeLJ::integrateStepOne(State* state, SimState& simstate) {
+    void ConstantVolume::integrateStepOne(State* state, SimState& simstate) {
         // 熱浴の更新
         this->thermostat->stepOne(state, simstate);
 
@@ -66,11 +72,12 @@ namespace md::integrators {
             N, 
             state->pos, 
             state->vel, 
-            state->force
+            state->force, 
+            state->mass_inv
         );
     }
 
-    void ConstantVolumeLJ::integrateStepTwo(State* state, SimState& simstate) {
+    void ConstantVolume::integrateStepTwo(State* state, SimState& simstate) {
         const auto dt_half_conv = simstate.dt * 0.5 * conversion_factor;
         const auto N = state->n_atoms;
 
@@ -80,7 +87,8 @@ namespace md::integrators {
             dt_half_conv, 
             N, 
             state->vel, 
-            state->force
+            state->force, 
+            state->mass_inv
         );
 
         // 熱浴の更新

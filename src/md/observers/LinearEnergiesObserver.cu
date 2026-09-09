@@ -13,12 +13,12 @@ LinearEnergiesObserver::LinearEnergiesObserver(int interval, Interaction* _inter
 
 LinearEnergiesObserver::~LinearEnergiesObserver() = default;
 
-void LinearEnergiesObserver::output(State& state, SimState& simstate) {
+void LinearEnergiesObserver::output(State* state, SimState& simstate) {
     if (simstate.current_steps % this->output_interval == 0) {
         printer->print_energies(state, simstate);
     }
 }
 
-void LinearEnergiesObserver::init(State& state, SimState& simstate) {
+void LinearEnergiesObserver::init(State* state, SimState& simstate) {
     printer->print_energies(state, simstate);
 }

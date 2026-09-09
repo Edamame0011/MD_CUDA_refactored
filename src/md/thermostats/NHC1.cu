@@ -93,29 +93,22 @@ namespace md::thermostats {
         cudaFree(chain_state_);
     }
 
-    void NHC1::init(State& state, SimState& simstate) {
-        if (state.n_atoms <= 0 || state.n_atoms > (2147483647 / 3)) {
-            throw std::invalid_argument("invalid atom count for NHC1");
-        }
-        if (!std::isfinite(boltzmann_constant) || boltzmann_constant <= 0.0f) {
-            throw std::invalid_argument("boltzmann_constant must be finite and positive");
-        }
-
-        atom_count_ = state.n_atoms;
+    void NHC1::init(State* state, SimState& simstate) {
+        atom_count_ = state->n_atoms;
         degrees_of_freedom_ = 3 * atom_count_;
         calculator_ = std::make_unique<KinEnergyCalculator>(state);
         cudaMemsetAsync(chain_state_, 0, sizeof(*chain_state_), simstate.stream);
     }
 
-    void NHC1::stepOne(State& state, SimState& simstate) {
+    void NHC1::stepOne(State* state, SimState& simstate) {
         apply(state, simstate);
     }
 
-    void NHC1::stepTwo(State& state, SimState& simstate) {
+    void NHC1::stepTwo(State* state, SimState& simstate) {
         apply(state, simstate);
     }
 
-    void NHC1::apply(State& state, SimState& simstate) {
+    void NHC1::apply(State* state, SimState& simstate) {
         scheduler_->get_temperature(state, simstate);
 
         update_mass<<<1, 1, 0, simstate.stream>>>(
@@ -138,7 +131,7 @@ namespace md::thermostats {
 
         const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
         scale_velocities<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
-            state.vel, 
+            state->vel, 
             atom_count_, 
             chain_state_
         );

@@ -44,14 +44,14 @@ namespace md {
     Cell::Cell(int N, std::array<float, 3> _lattice) 
     : lattice{_lattice[0], _lattice[1], _lattice[2]}, lattice_inv{1.0f/_lattice[0], 1.0f/_lattice[1], 1.0f/_lattice[2]} {}
 
-    void Cell::apply_pbc(State& state, SimState& simstate) const {
-        auto N = state.n_atoms;
+    void Cell::apply_pbc(State* state, SimState& simstate) const {
+        auto N = state->n_atoms;
 
         int num_threads = 256;
         int num_blocks = (num_threads + N - 1) / num_threads;
         apply_pbc_kernel<<<num_blocks, num_threads, 0, simstate.stream>>>(
-            state.pos, 
-            state.image, 
+            state->pos, 
+            state->image, 
             lattice, 
             lattice_inv, 
             N

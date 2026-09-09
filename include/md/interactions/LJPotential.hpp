@@ -24,8 +24,8 @@ namespace md {
                     std::vector<float> cutoff
                 );
 
-                void calc_force(State& state, SimState& simstate) override;
-                float calc_potential(State& state, SimState& simstate) override;
+                void calc_force(State* state, SimState& simstate) override;
+                float calc_potential(State* state, SimState& simstate) override;
 
             private: 
                 int num_species;

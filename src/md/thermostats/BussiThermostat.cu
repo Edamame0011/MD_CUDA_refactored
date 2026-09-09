@@ -92,19 +92,19 @@ namespace md::thermostats {
         cudaFree(scaling_factor_);
     }
 
-    void BussiThermostat::init(State& state, SimState& simstate, unsigned long long seed) {
-        this->atom_count_ = state.n_atoms;
+    void BussiThermostat::init(State* state, SimState& simstate, unsigned long long seed) {
+        this->atom_count_ = state->n_atoms;
         this->degrees_of_freedom_ = 3 * atom_count_;
         this->calculator_ = std::make_unique<KinEnergyCalculator>(state);
 
         initialize_random_state<<<1, 1, 0, simstate.stream>>>(curand_state_, seed);
     }
 
-    void BussiThermostat::stepOne(State&, SimState&) {
+    void BussiThermostat::stepOne(State*, SimState&) {
         // 何もしない
     }
 
-    void BussiThermostat::stepTwo(State& state, SimState& simstate) {
+    void BussiThermostat::stepTwo(State* state, SimState& simstate) {
         scheduler_->get_temperature(state, simstate);
         calculator_->calc_kinetic_energy(state, simstate);
 
@@ -120,7 +120,7 @@ namespace md::thermostats {
 
         const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
         scale_velocities<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
-            state.vel, 
+            state->vel, 
             atom_count_, 
             scaling_factor_
         );

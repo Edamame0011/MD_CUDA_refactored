@@ -7,7 +7,7 @@ namespace md::temperature_schedulers {
         public:
             ConstantScheduler(float target_temperature);
 
-            void get_temperature(State& state, SimState& simstate) override {
+            void get_temperature(State* state, SimState& simstate) override {
                 // 何もしない
             }
 

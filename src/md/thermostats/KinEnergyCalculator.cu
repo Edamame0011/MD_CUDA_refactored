@@ -35,8 +35,8 @@ namespace {
 }
 
 namespace md::thermostats {
-    KinEnergyCalculator::KinEnergyCalculator(const State& state)
-        : capacity_(state.n_atoms) {
+    KinEnergyCalculator::KinEnergyCalculator(const State* state)
+        : capacity_(state->n_atoms) {
         if (capacity_ <= 0) {
             throw std::invalid_argument("kinetic energy requires at least one atom");
         }
@@ -48,8 +48,8 @@ namespace md::thermostats {
             check_cuda(cudaMalloc(&d_kinetic_energy_, sizeof(*d_kinetic_energy_)),
                        "allocating float kinetic energy");
             const ParticleKineticEnergy transform{
-                state.vel,
-                state.mass,
+                state->vel,
+                state->mass,
                 1.0f / conversion_factor
             };
             const auto input = thrust::make_transform_iterator(
@@ -75,8 +75,8 @@ namespace md::thermostats {
         cudaFree(d_kinetic_energy_);
     }
 
-    void KinEnergyCalculator::calc_kinetic_energy(const State& state, SimState& simstate) {
-        if (state.n_atoms != capacity_) {
+    void KinEnergyCalculator::calc_kinetic_energy(const State* state, SimState& simstate) {
+        if (state->n_atoms != capacity_) {
             throw std::invalid_argument("State atom count differs from calculator capacity");
         }
         if (!std::isfinite(conversion_factor) || conversion_factor <= 0.0f) {
@@ -84,8 +84,8 @@ namespace md::thermostats {
         }
 
         const ParticleKineticEnergy transform{
-            state.vel,
-            state.mass,
+            state->vel,
+            state->mass,
             1.0f / conversion_factor
         };
         const auto input = thrust::make_transform_iterator(
@@ -96,14 +96,14 @@ namespace md::thermostats {
             temp_storage_bytes_,
             input,
             d_kinetic_energy_,
-            state.n_atoms,
+            state->n_atoms,
             simstate.stream
         ), "reducing kinetic energy");
 
     }
 
     float KinEnergyCalculator::calc_kinetic_energy_host(
-        const State& state, SimState& simstate) {
+        const State* state, SimState& simstate) {
         calc_kinetic_energy(state, simstate);
 
         float result = 0.0f;
