@@ -1,6 +1,6 @@
 {
     "meta": {
-        "name": "test_Langevin", 
+        "name": "test_multi_step_no_graph_new", 
         "unit": "lj", 
         "seed": 12345
     }, 
@@ -16,8 +16,10 @@
         }, 
         "interactions": {
             "cell_list": true, 
+            "sort": true, 
+            "use_graph": false, 
             "neighbour_list": {
-                "cutoff": 2.0, 
+                "cutoff": [1.5, 2.0, 2.0, 1.5], 
                 "margin": 0.7, 
                 "max_neighbours": 256
             }, 
@@ -32,25 +34,42 @@
     }, 
     "steps": [
         {
-            "name": "production run", 
+            "name": "equilibration run", 
             "simulation": {
                 "dt": 5e-3, 
-                "simulation_time": 2.5e+2, 
-                "cell_type": "cubic", 
+                "simulation_time": 1e+2, 
                 "ensemble": {
                     "type": "NVT", 
-                    "thermostat": "Langevin", 
-                    "tau": 1, 
+                    "thermostat": "Bussi", 
+                    "tau": 0.02, 
                     "seed": 12345, 
                     "temperature": 2.0, 
                     "scheduler": "constant"
                 }, 
-                "use_graph": true
+                "log_step": 10000
             }, 
             "observer": {
-                "type": "linear", 
-                "interval": 500
+                "type": "log", 
+                "divisions": 9
             }
+        }, 
+        {
+            "name": "production run", 
+            "simulation": {
+                "dt": 5e-3, 
+                "simulation_time": 5e+2, 
+                "cell_type": "cubic", 
+                "ensemble": {
+                    "type": "NVE", 
+                    "temperature": 2.0
+                }, 
+                "log_step": 10000
+            }, 
+            "observer": {
+                "type": "log", 
+                "divisions": 9
+            }, 
+            "step": "reset"
         }
     ] 
 }
