@@ -7,6 +7,8 @@
 namespace md {
     class Cell;
     struct State;
+    struct SimState;
+    class Interaction;
 }
 
 namespace md::observers {
@@ -15,20 +17,19 @@ namespace md::observers {
     class TrajectoryExporter {
         public:
             // particle_id and image must have been initialized by the caller.
-            TrajectoryExporter(const State* state, const std::string& output_path, Cell* cell);
-
-            void export_trajectory(const State* state);
-            void export_trajectory_unwrap(const State* state);
+            TrajectoryExporter(State* state, Cell& cell, Interaction* interaction, const std::string& output_path, const std::vector<std::string>& species_to_symbol);
+            
+            void export_frame(State* state, SimState& simstate, bool unwrap);
 
         private:
-            void export_frame(const State* state, bool unwrap);
-
             std::ofstream output_;
-            Cell* cell_;
+            Cell& cell_;
+            std::vector<std::string> species_to_symbol_;
             std::vector<float> positions_;
             std::vector<float> forces_;
             std::vector<int> images_;
             std::vector<int> species_;
             std::vector<int> particle_ids_;
+            Interaction* interaction_;
     };
 }

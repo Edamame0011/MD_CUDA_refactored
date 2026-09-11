@@ -28,8 +28,7 @@ namespace {
             const float vy = velocity.y[index];
             const float vz = velocity.z[index];
             const float particle_mass = mass[index];
-            return 0.5f * particle_mass * (vx * vx + vy * vy + vz * vz)
-                * inverse_conversion_factor;
+            return 0.5f * particle_mass * (vx * vx + vy * vy + vz * vz) * inverse_conversion_factor;
         }
     };
 }
@@ -88,8 +87,7 @@ namespace md::thermostats {
             state->mass,
             1.0f / conversion_factor
         };
-        const auto input = thrust::make_transform_iterator(
-            thrust::counting_iterator<int>(0), transform);
+        const auto input = thrust::make_transform_iterator(thrust::counting_iterator<int>(0), transform);
 
         check_cuda(cub::DeviceReduce::Sum(
             d_temp_storage_,
@@ -114,8 +112,7 @@ namespace md::thermostats {
             cudaMemcpyDeviceToHost,
             simstate.stream
         ), "copying kinetic energy to host");
-        check_cuda(cudaStreamSynchronize(simstate.stream),
-                   "synchronizing kinetic energy stream");
+        check_cuda(cudaStreamSynchronize(simstate.stream), "synchronizing kinetic energy stream");
         return result;
     }
 }

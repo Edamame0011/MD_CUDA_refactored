@@ -137,15 +137,6 @@ namespace md::interactions {
         cudaMalloc(&edge_index_ptr, 2 * num_max_edges * sizeof(int64_t));
         cudaMalloc(&counts, N * sizeof(int));
         cudaMalloc(&offsets, N * sizeof(int));
-
-        // 原子番号はシミュレーションを通して変わらないため、最初に初期化する
-        // int32_t -> int64_t
-        thrust::copy(
-            thrust::device, 
-            state->atomic_number, 
-            state->atomic_number + N, 
-            x_ptr
-        );
     }
 
     NNP::~NNP() {
@@ -203,6 +194,15 @@ namespace md::interactions {
             nl->get_max_neighbours(), 
             num_edges, 
             num_pairs
+        );
+
+        // 元素番号のコピー
+        // int32_t -> int64_t
+        thrust::copy(
+            thrust::device, 
+            state->atomic_number, 
+            state->atomic_number + N, 
+            x_ptr
         );
     }
 

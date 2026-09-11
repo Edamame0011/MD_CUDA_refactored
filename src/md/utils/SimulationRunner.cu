@@ -23,6 +23,8 @@
 #include <md/integrators/LangevinIntegratorLJ.cuh>
 #include <md/observers/LinearEnergiesObserver.hpp>
 #include <md/observers/LogEnergiesObserver.hpp>
+#include <md/observers/LinearTrajectoryObserver.hpp>
+#include <md/observers/LogTrajectoryObserver.hpp>
 #include <md/thermostats/NoThermostat.hpp>
 #include <md/thermostats/NHC1.hpp>
 #include <md/thermostats/BussiThermostat.cuh>
@@ -167,12 +169,8 @@ void SimulationRunner::run() {
             fs::path output_path = step_dir / s.value("path", "last_structure.xyz");
             bool is_unwrap = s.value("is_unwrap", false);
 
-            md::observers::TrajectoryExporter exporter(state.get(), output_path.string(), cell.get());
-            if (is_unwrap) {
-                exporter.export_trajectory_unwrap(state.get());
-            } else {
-                exporter.export_trajectory(state.get());
-            }
+            md::observers::TrajectoryExporter exporter(state.get(), *cell, interaction.get(), output_path.string(), species_to_symbol);
+            exporter.export_frame(state.get(), *simstate, is_unwrap);
         }
     }
 }
@@ -221,6 +219,7 @@ void SimulationRunner::build_state(const json& a_setting) {
     }
 
     this->simstate = std::make_unique<md::SimState>();
+    this->species_to_symbol = a_setting.at("symbol").get<std::vector<std::string>>();
 }
 
 void SimulationRunner::build_observer(const json& o_setting) {
@@ -249,21 +248,22 @@ void SimulationRunner::build_observer(const json& o_setting) {
             output_path.string()
         );
 
-/*
-    } else if (o_type == "linear_export_trajectory") {
+    } else if (o_type == "linear_trajectory") {
         int interval = o_setting.at("interval").get<int>();
         bool is_unwrap = o_setting.at("is_unwrap").get<bool>();
         fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
 
-        this->observer = std::make_unique<md::observers::LinearExportTrajectory>(
+        this->observer = std::make_unique<md::observers::LinearTrajectoryObserver>(
             interval, 
             is_unwrap, 
-            *state, 
-            cell.get(), 
-            output_path.string()
+            state.get(), 
+            *cell, 
+            interaction.get(), 
+            output_path.string(), 
+            species_to_symbol
         );
 
-    } else if (o_type == "log_export_trajectory") {
+    } else if (o_type == "log_trajectory") {
         int divisions = o_setting.at("divisions");
         float log_interval = std::pow(10.0f, 1.0f / (float)divisions);
         int counter = 5;
@@ -271,16 +271,18 @@ void SimulationRunner::build_observer(const json& o_setting) {
         fs::path output_path = step_dir / o_setting.value("output_path", "observer_output.xyz");
         fs::path temp_path = step_dir / o_setting.value("temp_path", "observer_temp.txt");
         
-        this->observer = std::make_unique<md::observers::LogExportTrajectory>(
+        this->observer = std::make_unique<md::observers::LogTrajectoryObserver>(
             log_interval, 
             counter, 
             is_unwrap, 
-            *state, 
-            cell.get(), 
+            state.get(), 
+            *cell, 
+            interaction.get(), 
             output_path.string(), 
-            temp_path.string()
+            temp_path.string(), 
+            species_to_symbol
         );
-
+/*
     } else if (o_type == "target_temperature_export") {
         std::vector<float> target_temperatures = o_setting.at("target_temperatures").get<std::vector<float>>();
         float initial_temperature = o_setting.at("initial_temperature").get<float>();

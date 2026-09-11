@@ -56,6 +56,7 @@ namespace md::utils {
             // ステップ毎のディレクトリ
             std::filesystem::path step_dir;
 
+            std::vector<std::string> species_to_symbol;
             std::string unit_type = "lj";
             bool use_cell_list = false;
             int use_graphs = 0;
