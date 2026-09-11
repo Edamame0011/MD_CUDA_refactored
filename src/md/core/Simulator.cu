@@ -12,6 +12,8 @@
 using namespace md;
 
 void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
+    const int start_step = simstate.current_steps;
+
     if (loop_per_graph > 0) {
         // CUDA Graphsによる最適化のために必要な変数
         cudaGraph_t graph;
@@ -57,8 +59,12 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
                 auto current_time = std::chrono::steady_clock::now();
                 double elapsed_s = std::chrono::duration<double>(current_time - start).count();
 
-                std::cout << simstate.current_steps << " out of " << total_steps << std::endl;
-                std::cout << "経過時間：" << elapsed_s << "s" << std::endl;
+                int completed_steps = simstate.current_steps - start_step;
+                int remaining_steps = total_steps - simstate.current_steps;
+
+                double estimated_remaining_s = elapsed_s * (double)remaining_steps / (double)completed_steps;
+
+                std::cout << "Current steps: " << simstate.current_steps << " / " << total_steps << ", " << "経過時間：" << elapsed_s << "s" << ", " << "残り時間（予測）" << estimated_remaining_s << "s" << std::endl;
 
                 next_print_step = ((simstate.current_steps / log_step) + 1) * log_step;
             }
@@ -101,7 +107,12 @@ void Simulator::run(float tsim, int loop_per_graph, int log_step)  {
                 auto current_time = std::chrono::steady_clock::now();
                 double elapsed_s = std::chrono::duration<double>(current_time - start).count();
 
-                std::cout << "Current steps: " << simstate.current_steps << " / " << total_steps << ", " << "経過時間：" << elapsed_s << "s" << std::endl;
+                int completed_steps = simstate.current_steps - start_step;
+                int remaining_steps = total_steps - simstate.current_steps;
+
+                double estimated_remaining_s = elapsed_s * (double)remaining_steps / (double)completed_steps;
+
+                std::cout << "Current steps: " << simstate.current_steps << " / " << total_steps << ", " << "経過時間：" << elapsed_s << "s" << ", " << "残り時間（予測）" << estimated_remaining_s << "s" << std::endl;
 
                 next_print_step = ((simstate.current_steps / log_step) + 1) * log_step;
             }
