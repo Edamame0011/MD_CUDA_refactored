@@ -181,6 +181,10 @@ namespace md::interactions {
         int num_pairs = last_offset + last_count;
         num_edges = 2 * num_pairs;
 
+        if (num_edges > num_max_edges) {
+            throw std::runtime_error("NNP: エッジ数が最大エッジ数を超過しました。");
+        }
+
         build_graph_kernel<<<num_blocks, num_threads, 0, simstate.stream>>>(
             state->pos, 
             edge_index_ptr, 

@@ -158,8 +158,8 @@ namespace {
 }
 
 namespace md::neighbour {
-    CellListNeighbourList::CellListNeighbourList(int n_atoms, int max_neighbours_, std::vector<float> cutoff_, float margin_, CellList& cl_) 
-    : NeighbourList(n_atoms, max_neighbours_, margin_), cl(cl_) {
+    CellListNeighbourList::CellListNeighbourList(int n_atoms, int n_species, int max_neighbours_, std::vector<float> cutoff_, float margin_, CellList& cl_) 
+    : NeighbourList(n_atoms, n_species, max_neighbours_, margin_), cl(cl_) {
         cudaMalloc(&this->flag, sizeof(bool));
         cudaMemset(this->flag, 1, sizeof(bool));
 

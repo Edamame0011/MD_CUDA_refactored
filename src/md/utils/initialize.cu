@@ -129,7 +129,7 @@ namespace md::utils {
         std::fill(species.begin() + num_a, species.end(), 1);
         std::shuffle(species.begin(), species.end(), mt);
 
-        auto state = std::make_unique<md::State>(n_atoms);
+        auto state = std::make_unique<md::State>(n_atoms, 2);
 
         // GPUに転送
         state->init(
@@ -195,7 +195,7 @@ namespace md::utils {
         );        
     }
 
-    std::unique_ptr<md::State> read_state_from_xyz(std::unique_ptr<Cell>& cell, const std::string& path) {
+    std::unique_ptr<md::State> read_state_from_xyz(int num_species, std::unique_ptr<Cell>& cell, const std::string& path) {
         std::ifstream file(path);
         
         if(!file.is_open()) {
@@ -207,7 +207,7 @@ namespace md::utils {
         std::getline(file, line);
         int N = std::stoi(line);
     
-        auto state = std::make_unique<md::StateNormal>(N);
+        auto state = std::make_unique<md::StateNormal>(N, num_species);
     
         // latticeの情報を取得
         std::getline(file, line);

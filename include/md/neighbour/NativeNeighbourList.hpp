@@ -9,7 +9,7 @@ namespace md {
     namespace neighbour {
         class NativeNeighbourList : public NeighbourList {
             public:
-                NativeNeighbourList(int n_atoms, int max_neighbours, std::vector<float> cutoff, float margin);
+                NativeNeighbourList(int n_atoms, int n_species, int max_neighbours, std::vector<float> cutoff, float margin);
                 ~NativeNeighbourList();
 
                 void generate(State* state, SimState& simstate, Cell& cell) override;

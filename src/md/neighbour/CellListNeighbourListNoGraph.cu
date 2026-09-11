@@ -169,8 +169,8 @@ namespace {
 }
 
 namespace md::neighbour {
-    CellListNeighbourListNoGraph::CellListNeighbourListNoGraph(int n_atoms, int max_neighbours_, std::vector<float> cutoff_, float margin_, CellList* cl_) 
-    : NeighbourList(n_atoms, max_neighbours_, margin_), cl(cl_) {
+    CellListNeighbourListNoGraph::CellListNeighbourListNoGraph(int n_atoms, int n_species, int max_neighbours_, std::vector<float> cutoff_, float margin_, CellList* cl_) 
+    : NeighbourList(n_atoms, n_species, max_neighbours_, margin_), cl(cl_) {
         this->flag = true;
 
         NeighbourList::init_cutoff(cutoff_);

@@ -4,7 +4,7 @@
 using Top2 = md::neighbour::Top2;
 
 namespace md {
-    NeighbourList::NeighbourList(int n_atoms, int max_neighbours_, float margin_) : max_neighbours(max_neighbours_), margin(margin_) {
+    NeighbourList::NeighbourList(int n_atoms, int n_species, int max_neighbours_, float margin_) : max_neighbours(max_neighbours_), margin(margin_) {
         cudaMalloc(&this->nl_conf.x, n_atoms * sizeof(float));
         cudaMalloc(&this->nl_conf.y, n_atoms * sizeof(float));
         cudaMalloc(&this->nl_conf.z, n_atoms * sizeof(float));
@@ -12,6 +12,8 @@ namespace md {
 
         list.resize(n_atoms * max_neighbours);
         count.resize(n_atoms);
+
+        this->num_species = n_species;
     }
 
     NeighbourList::~NeighbourList() {
@@ -23,7 +25,9 @@ namespace md {
 
     void NeighbourList::init_cutoff(const std::vector<float>& cutoff_) {
         const size_t n_pairs = cutoff_.size();
-        num_species = (int)std::sqrt(n_pairs);
+        if(num_species != (int)std::sqrt(n_pairs)) {
+            throw std::runtime_error("cutoffの要素数は原子種^2である必要があります。");
+        }
 
         std::vector<float> h_cutoff_margin_sq(n_pairs);
         for (int i = 0; i < n_pairs; i ++) {

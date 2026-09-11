@@ -85,8 +85,9 @@ namespace {
 }
 
 namespace md {
-    State::State(int N) {
+    State::State(int N, int n_species_) {
         this->n_atoms = N;
+        this->n_species = n_species_;
 
         // メモリの確保
         float *pos_, *vel_, *force_;
@@ -225,7 +226,7 @@ namespace md {
         );
     }
 
-    StateNormal::StateNormal(int N) : State(N) {
+    StateNormal::StateNormal(int N, int n_species_) : State(N, n_species_) {
         cudaMalloc(&mass_buffer, N * sizeof(float));
         cudaMalloc(&mass_inv_buffer, N * sizeof(float));
         cudaMalloc(&atomic_number_buffer, N * sizeof(int));

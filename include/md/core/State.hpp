@@ -25,9 +25,9 @@ namespace md {
         float *mass, *mass_inv;
         int *atomic_number;
 
-        int n_atoms;
+        int n_atoms, n_species;
 
-        State(int N);
+        State(int n_atoms, int n_species);
         virtual ~State();
         void init(
             const float *h_pos_x, const float *h_pos_y, const float *h_pos_z, 
@@ -57,7 +57,7 @@ namespace md {
             const int *h_species, const float *h_mass, const int* atomic_number
         );
 
-        StateNormal(int N);
+        StateNormal(int n_atoms, int n_species);
         ~StateNormal();
     };
 

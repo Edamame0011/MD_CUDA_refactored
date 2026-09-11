@@ -190,6 +190,8 @@ void SimulationRunner::configure_units(const json& m_setting) {
 
 void SimulationRunner::build_state(const json& a_setting) {
     string mode = a_setting.value("mode", "");
+    this->species_to_symbol = a_setting.at("symbol").get<std::vector<std::string>>();
+    int n_species = species_to_symbol.size();
     
     if (mode == "generate_binary_lj") {
         int n_atoms = a_setting.at("n_atoms").get<int>();
@@ -200,17 +202,10 @@ void SimulationRunner::build_state(const json& a_setting) {
         float a_ratio = ratio_vec[0] / (ratio_vec[0] + ratio_vec[1]);
         this->state = md::utils::generate_binary_lj(n_atoms, density, this->cell, a_ratio, mt);
 
-        // State currently leaves trajectory bookkeeping arrays uninitialized.
-        // Initialize them here so save_last_structure is valid before any sorting.
-        cudaMemset(state->image.x, 0, n_atoms * sizeof(int));
-        cudaMemset(state->image.y, 0, n_atoms * sizeof(int));
-        cudaMemset(state->image.z, 0, n_atoms * sizeof(int));
-        thrust::sequence(thrust::device, state->particle_id, state->particle_id + n_atoms);
-
     } else if (mode == "from_file") {
         string format = a_setting.value("format", "xyz");
         if (format == "xyz") {
-            this->state = md::utils::read_state_from_xyz(this->cell, a_setting.at("path"));
+            this->state = md::utils::read_state_from_xyz(n_species, this->cell, a_setting.at("path"));
         } else {
             throw std::runtime_error("未対応のファイルフォーマットです: " + format);
         }
@@ -428,19 +423,19 @@ void SimulationRunner::build_interaction(const json& i_setting) {
             this->cl = std::make_unique<CellList>(M, state.get(), *cell);
 
             // neighbour listの初期化
-            this->nl = std::make_unique<md::neighbour::CellListNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin, *cl);
+            this->nl = std::make_unique<md::neighbour::CellListNeighbourList>(state->n_atoms, state->n_species, max_neighbours, cutoff, margin, *cl);
             nl->generate(state.get(), *simstate, *cell);
 
         } else {
             // グラフを使わない場合
             this->cl = std::make_unique<CellListNoGraph>(M, state.get(), *cell);
 
-            this->nl = std::make_unique<md::neighbour::CellListNeighbourListNoGraph>(state->n_atoms, max_neighbours, cutoff, margin, cl.get());
+            this->nl = std::make_unique<md::neighbour::CellListNeighbourListNoGraph>(state->n_atoms, state->n_species, max_neighbours, cutoff, margin, cl.get());
             nl->generate(state.get(), *simstate, *cell);
         }
     } else {
         // neighbour listの初期化
-        this->nl = std::make_unique<md::neighbour::NativeNeighbourList>(state->n_atoms, max_neighbours, cutoff, margin);
+        this->nl = std::make_unique<md::neighbour::NativeNeighbourList>(state->n_atoms, state->n_species, max_neighbours, cutoff, margin);
         nl->generate(state.get(), *simstate, *cell);
     }
 

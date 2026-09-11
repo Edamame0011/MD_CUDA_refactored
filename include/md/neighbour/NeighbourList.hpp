@@ -29,7 +29,7 @@ namespace md {
             DeviceVec3 nl_conf;
             md::neighbour::Top2* top2;
 
-            NeighbourList(int n_atoms, int max_neighbours_, float margin_);
+            NeighbourList(int n_atoms, int n_species, int max_neighbours_, float margin_);
             void init_cutoff(const std::vector<float>& cutoff_);
         };
 }

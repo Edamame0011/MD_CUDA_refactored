@@ -100,8 +100,8 @@ namespace {
 }
 
 namespace md::neighbour {
-    NativeNeighbourList::NativeNeighbourList(int n_atoms, int max_neighbours_, std::vector<float> cutoff_, float margin_) 
-    : NeighbourList(n_atoms, max_neighbours_, margin_) {
+    NativeNeighbourList::NativeNeighbourList(int n_atoms, int n_species, int max_neighbours_, std::vector<float> cutoff_, float margin_) 
+    : NeighbourList(n_atoms, n_species, max_neighbours_, margin_) {
         cudaMalloc(&this->flag, sizeof(bool));
         cudaMemset(this->flag, 1, sizeof(bool));
 

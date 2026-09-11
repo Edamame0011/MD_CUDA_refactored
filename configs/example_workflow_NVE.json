@@ -9,7 +9,8 @@
             "mode": "generate_binary_lj", 
             "n_atoms": 60000, 
             "density": 1.2, 
-            "ratio": [0.8, 0.2]
+            "ratio": [0.8, 0.2], 
+            "symbol": ["X", "Y"]
         }, 
         "cell" : {
             "type": "cubic"

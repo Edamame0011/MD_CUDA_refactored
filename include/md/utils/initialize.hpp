@@ -14,6 +14,6 @@ namespace md {
         std::unique_ptr<md::State> generate_binary_lj(const int n_atoms, const float density, std::unique_ptr<Cell>& cell, const float a_ratio, std::mt19937 &mt);
         std::unique_ptr<md::Interaction> build_lj_potential(const nlohmann::json& json, State &state, Cell* cell, NeighbourList* NL);
         void init_velocities(State* state, float temperature, std::mt19937& mt);
-        std::unique_ptr<md::State> read_state_from_xyz(std::unique_ptr<Cell>& cell, const std::string& path);
+        std::unique_ptr<md::State> read_state_from_xyz(int n_species, std::unique_ptr<Cell>& cell, const std::string& path);
     }
 }
