@@ -1,115 +1,97 @@
-#include <md/integrators/ConstantVolume.cuh>
+#include <md/integrators/ConstantVolume.hpp>
 
 #include <md/core/constant.h>
-#include <md/core/State.cuh>
+#include <md/core/State.hpp>
 #include <md/thermostats/Thermostat.cuh>
 
-#include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
+using DeviceVec3 = md::DeviceVec3;
 
 namespace {
-    struct VelocityVerletStepOne {
-        const float dt;
-        const float dt_half_conv;
+    __global__ void velocity_verlet_stepone(
+        const float dt, 
+        const float dt_half_conv, 
+        const int n_atoms, 
+        DeviceVec3 pos, 
+        DeviceVec3 vel, 
+        const DeviceVec3 force, 
+        const float* __restrict__ mass_inv
+    ) {
+        int idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >= n_atoms) return;
 
-        dfloat3 pos, vel;
-        const dfloat3 force;
-        const float* mass_inv;
+        const auto mi = mass_inv[idx];
 
-        VelocityVerletStepOne(
-            dfloat3 _pos, 
-            dfloat3 _vel, 
-            dfloat3 _force, 
-            float *_mass_inv, 
-            float _dt, 
-            float _dt_half_conv
-        ) : pos(_pos), vel(_vel), force(_force), mass_inv(_mass_inv), dt(_dt), dt_half_conv(_dt_half_conv) {}
+        // 速度の更新
+        const auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
+        const auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
+        const auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
 
-        __host__ __device__ void operator() (int idx) {
-            const auto mi = mass_inv[idx];
+        vel.x[idx] = vx;
+        vel.y[idx] = vy;
+        vel.z[idx] = vz;
 
-            // 速度の更新
-            const auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
-            const auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
-            const auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
+        // 位置の更新
+        pos.x[idx] += vx * dt;
+        pos.y[idx] += vy * dt;
+        pos.z[idx] += vz * dt;
+    }
 
-            vel.x[idx] = vx;
-            vel.y[idx] = vy;
-            vel.z[idx] = vz;
+    __global__ void velocity_verlet_steptwo(
+        const float dt_half_conv, 
+        const int n_atoms, 
+        DeviceVec3 vel, 
+        const DeviceVec3 force, 
+        const float* __restrict__ mass_inv
+    ) {
+        int idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >= n_atoms) return;
 
-            // 位置の更新
-            pos.x[idx] += vx * dt;
-            pos.y[idx] += vy * dt;
-            pos.z[idx] += vz * dt;
-        }
-    };
+        const auto mi = mass_inv[idx];
 
-    struct VelocityVerletStepTwo {
-        const float dt_half_conv;
-
-        dfloat3 vel;
-        const dfloat3 force;
-        const float* mass_inv;
-
-        VelocityVerletStepTwo(
-            dfloat3 _vel, 
-            dfloat3 _force, 
-            const float* _mass_inv, 
-            float _dt_half_conv
-        ) : vel(_vel), force(_force), mass_inv(_mass_inv), dt_half_conv(_dt_half_conv) {}
-
-        __host__ __device__ void operator() (int idx) {
-            const auto mi = mass_inv[idx];
-
-            // 速度の更新
-            vel.x[idx] += force.x[idx] * mi * dt_half_conv;
-            vel.y[idx] += force.y[idx] * mi * dt_half_conv;
-            vel.z[idx] += force.z[idx] * mi * dt_half_conv;
-        }
-    };
+        // 速度の更新
+        vel.x[idx] += force.x[idx] * mi * dt_half_conv;
+        vel.y[idx] += force.y[idx] * mi * dt_half_conv;
+        vel.z[idx] += force.z[idx] * mi * dt_half_conv;
+    }
 }
 
-using namespace md::integrators;
+namespace md::integrators {    
+    void ConstantVolume::integrateStepOne(State* state, SimState& simstate) {
+        // 熱浴の更新
+        this->thermostat->stepOne(state, simstate);
 
-void ConstantVolume::integrateStepOne(State& state) {
-    // 熱浴の更新
-    this->thermostat->stepOne(state);
+        const auto N = state->n_atoms;
+        const auto dt = simstate.dt;
+        const auto dt_half_conv = dt * 0.5 * conversion_factor;
 
-    const auto dt = state.dt;
-    const auto dt_half_conv = dt * 0.5 * conversion_factor;
-
-    // 更新
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
-        VelocityVerletStepOne(
-            state.pos, 
-            state.vel, 
-            state.force, 
-            state.mass_inv,  
+        // 更新
+        int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        velocity_verlet_stepone<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
             dt, 
-            dt_half_conv
-        )
-    );
-}
+            dt_half_conv, 
+            N, 
+            state->pos, 
+            state->vel, 
+            state->force, 
+            state->mass_inv
+        );
+    }
 
-void ConstantVolume::integrateStepTwo(State& state) {
-    const auto dt_half_conv = state.dt * 0.5 * conversion_factor;
+    void ConstantVolume::integrateStepTwo(State* state, SimState& simstate) {
+        const auto dt_half_conv = simstate.dt * 0.5 * conversion_factor;
+        const auto N = state->n_atoms;
 
-    // 更新
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
-        VelocityVerletStepTwo(
-            state.vel, 
-            state.force, 
-            state.mass_inv, 
-            dt_half_conv
-        )
-    );
+        // 更新
+        int num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+        velocity_verlet_steptwo<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+            dt_half_conv, 
+            N, 
+            state->vel, 
+            state->force, 
+            state->mass_inv
+        );
 
-    // 熱浴の更新
-    this->thermostat->stepTwo(state);
+        // 熱浴の更新
+        this->thermostat->stepTwo(state, simstate);
+    }
 }

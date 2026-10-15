@@ -9,19 +9,17 @@
 
 namespace md {
     class State;
+    class SimState;
     class Integrator;
     class Interaction;
     class Observer;
     class Cell;
     class NeighbourList;
+    class CellList;
     class TemperatureScheduler;
     class Thermostat;
-    class ConvChecker;
-    class EnergyMinimizer;
-    class SortedCellList;
-    class NeighbourList_CLL;
-    class UnsortedCellList;
-    class NeighbourList_uCLL;
+//    class ConvChecker;
+//    class EnergyMinimizer;
 }
 
 namespace md::utils {
@@ -36,23 +34,19 @@ namespace md::utils {
             nlohmann::json j;
 
             std::unique_ptr<State> state;
+            std::unique_ptr<SimState> simstate;
+            std::unique_ptr<Cell> cell;
             std::unique_ptr<Integrator> integrator;
             std::unique_ptr<Interaction> interaction;
             std::unique_ptr<Observer> observer;
-            std::unique_ptr<Cell> cell;
             std::unique_ptr<NeighbourList> nl;
+            std::unique_ptr<CellList> cl;
 
             std::unique_ptr<TemperatureScheduler> scheduler;
             std::unique_ptr<Thermostat> thermostat;
 
-            std::unique_ptr<ConvChecker> checker;
-            std::unique_ptr<EnergyMinimizer> minimizer;
-
-            std::unique_ptr<SortedCellList> cll;
-            std::unique_ptr<NeighbourList_CLL> nl_cll;
-
-            std::unique_ptr<UnsortedCellList> ucll;
-            std::unique_ptr<NeighbourList_uCLL> nl_ucll;
+//            std::unique_ptr<ConvChecker> checker;
+//            std::unique_ptr<EnergyMinimizer> minimizer;
 
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;
@@ -61,6 +55,11 @@ namespace md::utils {
             std::filesystem::path parent_dir;
             // ステップ毎のディレクトリ
             std::filesystem::path step_dir;
+
+            std::vector<std::string> species_to_symbol;
+            std::string unit_type = "lj";
+            bool use_cell_list = false;
+            int use_graphs = 0;
 
             void configure_units(const nlohmann::json& m_setting);
             void build_state(const nlohmann::json& a_setting);

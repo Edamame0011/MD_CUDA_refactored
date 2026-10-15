@@ -2,43 +2,37 @@
 
 #include <md/thermostats/Thermostat.cuh>
 
-#include <random>
-#include <memory>
 #include <curand_kernel.h>
+#include <memory>
 
 namespace md {
-    class State;
     class TemperatureScheduler;
 
     namespace thermostats {
         class KinEnergyCalculator;
+
+        class BussiThermostat : public Thermostat {
+            public:
+                BussiThermostat(float tau, TemperatureScheduler* scheduler);
+                ~BussiThermostat();
+
+                void init(State* state, SimState& simstate, unsigned long long seed);
+                void stepOne(State* state, SimState& simstate) override;
+                void stepTwo(State* state, SimState& simstate) override;
+
+                BussiThermostat(const BussiThermostat&) = delete;
+                BussiThermostat& operator=(const BussiThermostat&) = delete;
+
+            private:
+                float tau_;
+                int degrees_of_freedom_ = 0;
+                int atom_count_ = 0;
+                TemperatureScheduler* scheduler_ = nullptr;
+                std::unique_ptr<KinEnergyCalculator> calculator_;
+                float* scaling_factor_ = nullptr;
+
+                // 乱数生成
+                curandState* curand_state_ = nullptr;
+        };
     }
-}
-
-namespace md::thermostats {
-    class BussiThermostat : public Thermostat {
-        public: 
-            BussiThermostat(const float _tau, TemperatureScheduler *_scheduler) : tau(_tau), scheduler(_scheduler) {
-                cudaMalloc(&scaling_factor, sizeof(float));
-                cudaMalloc(&curand_state, sizeof(curandState));
-            }
-            ~BussiThermostat() {
-                cudaFree(scaling_factor);
-                cudaFree(curand_state);
-            }
-
-            void stepOne(State& state) override { /*何もしない*/ }
-            void stepTwo(State& state) override;
-
-            void init(State& state, unsigned long long seed);
-        private:
-            float tau;
-            int dof;
-            TemperatureScheduler* scheduler = nullptr;
-            std::unique_ptr<KinEnergyCalculator> calculator;
-            float* scaling_factor = nullptr;
-
-            // 乱数生成器
-            curandState* curand_state;
-    };
 }

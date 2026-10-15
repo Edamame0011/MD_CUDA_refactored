@@ -1,100 +1,85 @@
-#include <md/observers/TrajectoryExporter.cuh>
+#include <md/observers/TrajectoryExporter.hpp>
 
-#include <md/cells/Cell.cuh>
-#include <md/core/State.cuh>
+#include <md/core/Cell.cuh>
+#include <md/core/State.hpp>
+#include <md/interactions/Interaction.hpp>
 
-using namespace md::observers;
+#include <cuda_runtime.h>
 
-TrajectoryExporter::TrajectoryExporter(State& state, const std::string& output_path, Cell* _cell) 
-: cell(_cell), atom_number_map{"H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca"} {
-    this->ofs.open(output_path);
-    if (!ofs) {
-        throw std::runtime_error("出力ファイルが開けませんでした。");
-    }
+#include <iomanip>
+#include <stdexcept>
 
-    size_t N = state.n_atoms;
-
-    std::vector<int> h_atomic_numbers(N);
-    cudaMemcpy(h_atomic_numbers.data(), state.atomic_numbers, N * sizeof(int), cudaMemcpyDeviceToHost);
-
-    species.resize(N);
-    for (size_t i = 0; i < N; i ++) {
-        int atomic_num = h_atomic_numbers[i];
-
-        if (atomic_num > 20) { 
-            throw std::runtime_error("Invalid atomic number detected.");
-
-        } else if (atomic_num == 0) {
-            species[i] = "X";
-        } else {
-            species[i] = atom_number_map[atomic_num - 1];
-        }    
-    }
-
-    h_pos.resize(3 * N);
-    h_force.resize(3 * N);
-    h_box.resize(3 * N);
-}
-
-void TrajectoryExporter::export_trajectory(State& state) {
-    auto lattice = cell->get_lattice();
-    
-    size_t N = state.n_atoms;
-
-    float* h_pos_ptr = h_pos.data();
-    float* h_force_ptr = h_force.data();
-
-    // ホスト側にコピー
-    cudaMemcpy(h_pos_ptr, state.pos.x, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_pos_ptr + N, state.pos.y, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_pos_ptr + 2 * N, state.pos.z, N * sizeof(float), cudaMemcpyDeviceToHost);
-
-    cudaMemcpy(h_force_ptr, state.force.x, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_force_ptr + N, state.force.y, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_force_ptr + 2 * N, state.force.z, N * sizeof(float), cudaMemcpyDeviceToHost);
-
-    // ファイルに出力
-    ofs << std::setprecision(7) << std::scientific;
-    ofs << N << "\n";
-    ofs << "Lattice=\"" << lattice[0] << " 0.0 0.0 0.0 " << lattice[1] << " 0.0 0.0 0.0 " << lattice[2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"T T T\"" << "\n";
-    for (size_t i = 0; i < N; i ++) {
-        ofs << species[i] << " "
-            << h_pos[i] << " " << h_pos[N + i] << " " << h_pos[2 * N + i] << " "
-            << h_force[i] << " " << h_force[N + i] << " " << h_force[2 * N + i] << "\n";
+namespace {
+    void check_cuda(cudaError_t status, const char* operation) {
+        if (status != cudaSuccess) {
+            throw std::runtime_error(std::string("TrajectoryExporter: ") + operation + ": " + cudaGetErrorString(status));
+        }
     }
 }
 
-void TrajectoryExporter::export_trajectory_unwrap(State& state) {
-    auto lattice = cell->get_lattice();
+namespace md::observers {
+    TrajectoryExporter::TrajectoryExporter(
+        State* state, 
+        Cell& cell, 
+        Interaction* interaction, 
+        const std::string& output_path,
+        const std::vector<std::string>& species_to_symbol
+    ) : output_(output_path), cell_(cell), interaction_(interaction), species_to_symbol_(species_to_symbol) {
+        if (!output_) {
+            throw std::runtime_error("TrajectoryExporter: could not open output file: " + output_path);
+        }
 
-    size_t N = state.n_atoms;
+        const auto N = static_cast<std::size_t>(state->n_atoms);
+        positions_.resize(3 * N);
+        forces_.resize(3 * N);
+        images_.resize(3 * N);
+        species_.resize(N);
+        particle_ids_.resize(N);
+    }
 
-    float* h_pos_ptr = h_pos.data();
-    float* h_force_ptr = h_force.data();
-    int* h_box_ptr = h_box.data();
+    void TrajectoryExporter::export_frame(State* state, SimState& simstate, bool unwrap) {
+        const auto N = static_cast<std::size_t>(state->n_atoms);
 
-    // ホスト側にコピー
-    cudaMemcpy(h_pos_ptr, state.pos.x, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_pos_ptr + N, state.pos.y, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_pos_ptr + 2 * N, state.pos.z, N * sizeof(float), cudaMemcpyDeviceToHost);
+        check_cuda(cudaMemcpy(positions_.data(), state->pos.x, N * sizeof(float), cudaMemcpyDeviceToHost), "copy x positions");
+        check_cuda(cudaMemcpy(positions_.data() + N, state->pos.y, N * sizeof(float), cudaMemcpyDeviceToHost), "copy y positions");
+        check_cuda(cudaMemcpy(positions_.data() + 2 * N, state->pos.z, N * sizeof(float), cudaMemcpyDeviceToHost), "copy z positions");
+        check_cuda(cudaMemcpy(forces_.data(), state->force.x, N * sizeof(float), cudaMemcpyDeviceToHost), "copy x forces");
+        check_cuda(cudaMemcpy(forces_.data() + N, state->force.y, N * sizeof(float), cudaMemcpyDeviceToHost), "copy y forces");
+        check_cuda(cudaMemcpy(forces_.data() + 2 * N, state->force.z, N * sizeof(float), cudaMemcpyDeviceToHost), "copy z forces");
+        check_cuda(cudaMemcpy(species_.data(), state->species, N * sizeof(int), cudaMemcpyDeviceToHost), "copy species");
+        check_cuda(cudaMemcpy(particle_ids_.data(), state->particle_id, N * sizeof(int), cudaMemcpyDeviceToHost), "copy particle IDs");
+        if (unwrap) {
+            check_cuda(cudaMemcpy(images_.data(), state->image.x, N * sizeof(int), cudaMemcpyDeviceToHost), "copy x images");
+            check_cuda(cudaMemcpy(images_.data() + N, state->image.y, N * sizeof(int), cudaMemcpyDeviceToHost), "copy y images");
+            check_cuda(cudaMemcpy(images_.data() + 2 * N, state->image.z, N * sizeof(int), cudaMemcpyDeviceToHost), "copy z images");
+        }
 
-    cudaMemcpy(h_force_ptr, state.force.x, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_force_ptr + N, state.force.y, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_force_ptr + 2 * N, state.force.z, N * sizeof(float), cudaMemcpyDeviceToHost);
+        std::vector<int> current_index_by_id(N, -1);
+        for (int i = 0; i < N; i ++) {
+            const int id = particle_ids_[i];
+            current_index_by_id[id] = i;
+        }
 
-    cudaMemcpy(h_box_ptr, state.box.x, N * sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_box_ptr + N, state.box.y, N * sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_box_ptr + 2 * N, state.box.z, N * sizeof(int), cudaMemcpyDeviceToHost);
+        const auto lattice = cell_.get_lattice();
+        const float potential = interaction_->calc_potential(state, simstate);
+        output_ << std::scientific << std::setprecision(7);
+        output_ << N << '\n';
+        output_ << "Lattice=\"" << lattice[0] << " 0.0 0.0 0.0 "
+                << lattice[1] << " 0.0 0.0 0.0 " << lattice[2]
+                << "\" Properties=species:S:1:pos:R:3:forces:R:3 energy=" << potential << " pbc=\"T T T\"\n";
 
-    // ファイルに出力
-    ofs << std::setprecision(7) << std::scientific;
-    ofs << N << "\n";
-    ofs << "Lattice=\"" << lattice[0] << " 0.0 0.0 0.0 " << lattice[1] << " 0.0 0.0 0.0 " << lattice[2] << "\" " << "Properties=species:S:1:pos:R:3:forces:R:3 energy=" << state.potential_energy << " pbc=\"F F F\"" << "\n";
-    for (size_t i = 0; i < N; i ++) {
-        ofs << species[i] << " "
-            << h_pos[i] + h_box[i] * lattice[0] << " " 
-            << h_pos[N + i] + h_box[N + i] * lattice[1] << " " 
-            << h_pos[2 * N + i] + h_box[2 * N + i] * lattice[2] << " "
-            << h_force[i] << " " << h_force[N + i] << " " << h_force[2 * N + i] << "\n";
+        for (std::size_t id = 0; id < N; ++id) {
+            const auto current = (std::size_t)current_index_by_id[id];
+            const float x = positions_[current] + (unwrap ? images_[current] * lattice[0] : 0.0f);
+            const float y = positions_[N + current] + (unwrap ? images_[N + current] * lattice[1] : 0.0f);
+            const float z = positions_[2 * N + current] + (unwrap ? images_[2 * N + current] * lattice[2] : 0.0f);
+            output_ << species_to_symbol_[species_[current]] << ' '
+                    << x << ' ' << y << ' ' << z << ' '
+                    << forces_[current] << ' ' << forces_[N + current] << ' ' << forces_[2 * N + current] << '\n';
+        }
+        output_.flush();
+        if (!output_) {
+            throw std::runtime_error("TrajectoryExporter: failed while writing trajectory");
+        }
     }
 }

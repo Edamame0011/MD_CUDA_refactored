@@ -1,11 +1,16 @@
 #include <md/integrators/LangevinIntegrator.cuh>
 
+#include <md/core/State.hpp>
 #include <md/core/constant.h>
-#include <md/core/State.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.hpp>
 #include <md/thermostats/Thermostat.cuh>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 #include <thrust/execution_policy.h>
+#include <thrust/for_each.h>
 
 namespace {
     struct InitCurand {
@@ -20,160 +25,151 @@ namespace {
         }
     };
 
-    struct StepOne {
-        const float dt_half, dt_half_conv, c1, boltzmann_constant;
-        dfloat3 pos, vel;
-        const dfloat3 force;
-        float* __restrict__ mass; 
-        float* __restrict__ mass_inv; 
-        curandState* states;
-
-        StepOne(
-            dfloat3 _pos, 
-            dfloat3 _vel, 
-            dfloat3 _force, 
-            float* _mass, 
-            float* _mass_inv, 
-            curandState* _states, 
-            float _dt_half, 
-            float _dt_half_conv, 
-            float _c1, 
-            float _boltzmann_constant
-        ) : pos(_pos), 
-            vel(_vel), 
-            force(_force), 
-            mass(_mass), 
-            mass_inv(_mass_inv), 
-            states(_states), 
-            dt_half(_dt_half), 
-            dt_half_conv(_dt_half_conv), 
-            c1(_c1), 
-            boltzmann_constant(_boltzmann_constant) {}
-        
-        __device__ void operator() (const int idx) {
-            auto cs = states[idx];
-            const auto m = mass[idx];
-            const auto mi = mass_inv[idx];
-            const float mass_sq_inv = rsqrtf(m);
-            const float c3 = sqrtf(boltzmann_constant * md::c_target_temperature * (1.0f - c1 * c1));
-
-            // 速度の更新1
-            auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
-            auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
-            auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
-
-            // 位置の更新1
-            pos.x[idx] += vx * dt_half;
-            pos.y[idx] += vy * dt_half;
-            pos.z[idx] += vz * dt_half;
-
-            // 乱数の生成
-            float rx = curand_normal(&cs);
-            float ry = curand_normal(&cs);
-            float rz = curand_normal(&cs);
-
-            // 速度の更新2
-            vx = c1 * vx + c3 * mass_sq_inv * rx;
-            vy = c1 * vy + c3 * mass_sq_inv * ry;
-            vz = c1 * vz + c3 * mass_sq_inv * rz;
-        
-            vel.x[idx] = vx;
-            vel.y[idx] = vy;
-            vel.z[idx] = vz;
-
-            // 位置の更新2
-            pos.x[idx] += vx * dt_half;
-            pos.y[idx] += vy * dt_half;
-            pos.z[idx] += vz * dt_half;
-
-            states[idx] = cs;
+    __global__ void baoab_step_one(
+        md::DeviceVec3 pos,
+        md::DeviceVec3 vel,
+        md::DeviceVec3 force, 
+        const float* __restrict__ mass, 
+        const float* __restrict__ mass_inv, 
+        curandState* random_states,
+        const int atom_count,
+        const float dt_half,
+        const float dt_half_conv,
+        const float c1,
+        const float boltzmann_constant
+    ) {
+        const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx >= atom_count) {
+            return;
         }
-    };
 
-    struct StepTwo {
-        dfloat3 vel;
-        const dfloat3 force;
-        const float* mass_inv;
+        auto cs = random_states[idx];
+        const auto m = mass[idx];
+        const auto mi = mass_inv[idx];
+        const float mass_sq_inv = rsqrtf(m);
+        const float c3 = sqrtf(boltzmann_constant * md::c_target_temperature * (1.0f - c1 * c1));
 
-        const float dt_half_conv;
+        // 速度の更新1
+        auto vx = vel.x[idx] + force.x[idx] * mi * dt_half_conv;
+        auto vy = vel.y[idx] + force.y[idx] * mi * dt_half_conv;
+        auto vz = vel.z[idx] + force.z[idx] * mi * dt_half_conv;
 
-        StepTwo(
-            dfloat3 _vel, 
-            dfloat3 _force, 
-            float* _mass_inv, 
-            float _dt_half_conv
-        ) : vel(_vel), 
-            force(_force), 
-            mass_inv(_mass_inv), 
-            dt_half_conv(_dt_half_conv) {}
+        // 位置の更新1
+        pos.x[idx] += vx * dt_half;
+        pos.y[idx] += vy * dt_half;
+        pos.z[idx] += vz * dt_half;
 
-        __host__ __device__ void operator() (const int idx) {
-            float mi = mass_inv[idx];
-            const auto mi_dt_half_conv = mi * dt_half_conv;
+        // 乱数の生成
+        float rx = curand_normal(&cs);
+        float ry = curand_normal(&cs);
+        float rz = curand_normal(&cs);
 
-            // 速度の更新3
-            vel.x[idx] += force.x[idx] * mi_dt_half_conv;
-            vel.y[idx] += force.y[idx] * mi_dt_half_conv;
-            vel.z[idx] += force.z[idx] * mi_dt_half_conv; 
-        }
-    };
+        // 速度の更新2
+        vx = c1 * vx + c3 * mass_sq_inv * rx;
+        vy = c1 * vy + c3 * mass_sq_inv * ry;
+        vz = c1 * vz + c3 * mass_sq_inv * rz;
+    
+        vel.x[idx] = vx;
+        vel.y[idx] = vy;
+        vel.z[idx] = vz;
+
+        // 位置の更新2
+        pos.x[idx] += vx * dt_half;
+        pos.y[idx] += vy * dt_half;
+        pos.z[idx] += vz * dt_half;
+
+        random_states[idx] = cs;
+    }
+
+    __global__ void baoab_step_two(
+        md::DeviceVec3 vel,
+        md::DeviceVec3 force, 
+        const float* __restrict__ mass_inv, 
+        const int atom_count,
+        const float dt_half_conv
+    ) {
+        const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx >= atom_count) return;
+
+        float mi = mass_inv[idx];
+        const auto mi_dt_half_conv = mi * dt_half_conv;
+
+        // 速度の更新3
+        vel.x[idx] += force.x[idx] * mi_dt_half_conv;
+        vel.y[idx] += force.y[idx] * mi_dt_half_conv;
+        vel.z[idx] += force.z[idx] * mi_dt_half_conv; 
+    }
 }
 
-using namespace md::integrators;
+namespace md::integrators {
+    LangevinIntegrator::LangevinIntegrator(
+        float gamma, unsigned long long seed, TemperatureScheduler* scheduler)
+        : gamma_(gamma), seed_(seed), scheduler_(scheduler) {
+        if (!std::isfinite(gamma_) || gamma_ < 0.0f) {
+            throw std::invalid_argument("Langevin gamma must be finite and non-negative");
+        }
+        if (scheduler_ == nullptr) {
+            throw std::invalid_argument("Langevin integrator requires a temperature scheduler");
+        }
+    }
 
-void LangevinIntegrator::init(const State& state, unsigned long long seed) {
-    this->dof = 3 * state.n_atoms;
-    this->c1 = std::exp(-this->gamma * state.dt);
+    void LangevinIntegrator::init(const State* state, SimState& simstate) {
+        init(state, simstate, seed_);
+    }
 
-    this->curand_state.resize(state.n_atoms);
+    void LangevinIntegrator::init(
+        const State* state, 
+        SimState& simstate, 
+        unsigned long long seed
+    ) {
+        atom_count_ = state->n_atoms;
+        dof_ = 3 * state->n_atoms;
+        c1_ = std::exp(-this->gamma_ * simstate.dt);
 
-    thrust::for_each(
-        thrust::device, 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
-        InitCurand(thrust::raw_pointer_cast(curand_state.data()), seed)
-    );
-}
+        curand_state_.resize(atom_count_);
 
-void LangevinIntegrator::integrateStepOne(State& state) {
-    // c3の計算
-    this->scheduler->get_temperature(state);
+        thrust::for_each(
+            thrust::device, 
+            thrust::make_counting_iterator<int>(0), 
+            thrust::make_counting_iterator<int>(atom_count_), 
+            InitCurand(thrust::raw_pointer_cast(curand_state_.data()), seed)
+        );
+    }
 
-    const auto dt_half = state.dt * 0.5;
-    const auto dt_half_conv = dt_half * conversion_factor;
+    void LangevinIntegrator::integrateStepOne(State* state, SimState& simstate) {
+        // c3の計算
+        scheduler_->get_temperature(state, simstate);
 
-    // 更新
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator<int>(0), 
-        thrust::make_counting_iterator<int>(state.n_atoms), 
-        StepOne(
-            state.pos, 
-            state.vel, 
-            state.force, 
-            state.mass, 
-            state.mass_inv, 
-            thrust::raw_pointer_cast(this->curand_state.data()), 
+        const auto dt_half = simstate.dt * 0.5;
+        const auto dt_half_conv = dt_half * conversion_factor;
+
+        // 更新
+        const int num_blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
+        baoab_step_one<<<num_blocks, NUM_THREADS, 0, simstate.stream>>>(
+            state->pos, 
+            state->vel, 
+            state->force, 
+            state->mass, 
+            state->mass_inv, 
+            thrust::raw_pointer_cast(this->curand_state_.data()), 
+            atom_count_, 
             dt_half, 
             dt_half_conv, 
-            this->c1, 
+            c1_, 
             boltzmann_constant
-        )
-    );
-}
+        );
+    }
 
-void LangevinIntegrator::integrateStepTwo(State& state) {
-    const auto dt_half_conv = state.dt * 0.5 * conversion_factor;
+    void LangevinIntegrator::integrateStepTwo(State* state, SimState& simstate) {
+        const float half_dt_conv = 0.5f * simstate.dt * conversion_factor;
 
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator(0), 
-        thrust::make_counting_iterator(state.n_atoms), 
-        StepTwo(
-            state.vel, 
-            state.force, 
-            state.mass_inv, 
-            dt_half_conv
-        )
-    );
+        const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
+        baoab_step_two<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
+            state->vel, 
+            state->force, 
+            state->mass_inv, 
+            atom_count_, 
+            half_dt_conv
+        );
+    }
 }

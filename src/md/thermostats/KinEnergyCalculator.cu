@@ -1,58 +1,118 @@
-#include <md/thermostats/KinEnergyCalculator.cuh>
+#include <md/thermostats/KinEnergyCalculator.hpp>
+
+#include <md/core/State.hpp>
+#include <md/core/constant.h>
 
 #include <cub/cub.cuh>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-#include <md/core/constant.h>
-#include <md/core/State.cuh>
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace {
-    struct CalcKinEnergy {
-        const float *vel_x, *vel_y, *vel_z;
-        const float *mass;
-        const float conversion_factor;
+    void check_cuda(cudaError_t error, const char* operation) {
+        if (error != cudaSuccess) {
+            throw std::runtime_error(std::string(operation) + ": " + cudaGetErrorString(error));
+        }
+    }
 
-        CalcKinEnergy(const float *vx, const float *vy, const float *vz, const float *m, const float _c)
-            : vel_x(vx), vel_y(vy), vel_z(vz), mass(m), conversion_factor(_c) {}
+    struct ParticleKineticEnergy {
+        md::DeviceVec3 velocity;
+        const float* mass;
+        float inverse_conversion_factor;
 
-        __device__ float operator() (int idx) const {
-            const auto vx = vel_x[idx];
-            const auto vy = vel_y[idx];
-            const auto vz = vel_z[idx];
-            const auto m = mass[idx];
-
-            return (0.5f * m * (vx * vx + vy * vy + vz * vz)) / conversion_factor;
+        __device__ float operator()(int index) const {
+            const float vx = velocity.x[index];
+            const float vy = velocity.y[index];
+            const float vz = velocity.z[index];
+            const float particle_mass = mass[index];
+            return 0.5f * particle_mass * (vx * vx + vy * vy + vz * vz) * inverse_conversion_factor;
         }
     };
 }
 
-using namespace md::thermostats;
+namespace md::thermostats {
+    KinEnergyCalculator::KinEnergyCalculator(const State* state)
+        : capacity_(state->n_atoms) {
+        if (capacity_ <= 0) {
+            throw std::invalid_argument("kinetic energy requires at least one atom");
+        }
+        if (!std::isfinite(conversion_factor) || conversion_factor <= 0.0f) {
+            throw std::invalid_argument("conversion_factor must be finite and positive");
+        }
 
-KinEnergyCalculator::KinEnergyCalculator(State& state) {
-    auto N = state.n_atoms;
+        try {
+            check_cuda(cudaMalloc(&d_kinetic_energy_, sizeof(*d_kinetic_energy_)),
+                       "allocating float kinetic energy");
+            const ParticleKineticEnergy transform{
+                state->vel,
+                state->mass,
+                1.0f / conversion_factor
+            };
+            const auto input = thrust::make_transform_iterator(
+                thrust::counting_iterator<int>(0), transform);
+            check_cuda(cub::DeviceReduce::Sum(
+                nullptr,
+                temp_storage_bytes_,
+                input,
+                d_kinetic_energy_,
+                capacity_
+            ), "querying kinetic energy reduction storage");
+            check_cuda(cudaMalloc(&d_temp_storage_, temp_storage_bytes_),
+                       "allocating kinetic energy reduction storage");
+        } catch (...) {
+            cudaFree(d_temp_storage_);
+            cudaFree(d_kinetic_energy_);
+            throw;
+        }
+    }
 
-    CalcKinEnergy op(state.vel.x, state.vel.y, state.vel.z, state.mass, conversion_factor);
-    thrust::counting_iterator<int> count_itr(0);
+    KinEnergyCalculator::~KinEnergyCalculator() {
+        cudaFree(d_temp_storage_);
+        cudaFree(d_kinetic_energy_);
+    }
 
-    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
+    void KinEnergyCalculator::calc_kinetic_energy(const State* state, SimState& simstate) {
+        if (state->n_atoms != capacity_) {
+            throw std::invalid_argument("State atom count differs from calculator capacity");
+        }
+        if (!std::isfinite(conversion_factor) || conversion_factor <= 0.0f) {
+            throw std::invalid_argument("conversion_factor must be finite and positive");
+        }
 
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, state.kinetic_energy, N);
+        const ParticleKineticEnergy transform{
+            state->vel,
+            state->mass,
+            1.0f / conversion_factor
+        };
+        const auto input = thrust::make_transform_iterator(thrust::counting_iterator<int>(0), transform);
 
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
-}
+        check_cuda(cub::DeviceReduce::Sum(
+            d_temp_storage_,
+            temp_storage_bytes_,
+            input,
+            d_kinetic_energy_,
+            state->n_atoms,
+            simstate.stream
+        ), "reducing kinetic energy");
 
-KinEnergyCalculator::~KinEnergyCalculator() {
-    cudaFree(d_temp_storage);
-}
+    }
 
-void KinEnergyCalculator::calc_kinetic_energy(State& state) {
-    auto N = state.n_atoms;
+    float KinEnergyCalculator::calc_kinetic_energy_host(
+        const State* state, SimState& simstate) {
+        calc_kinetic_energy(state, simstate);
 
-    CalcKinEnergy op(state.vel.x, state.vel.y, state.vel.z, state.mass, conversion_factor);
-    thrust::counting_iterator<int> count_itr(0);
-
-    auto trans_itr = thrust::make_transform_iterator(count_itr, op);
-
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, trans_itr, state.kinetic_energy, N, state.stream);
+        float result = 0.0f;
+        check_cuda(cudaMemcpyAsync(
+            &result,
+            d_kinetic_energy_,
+            sizeof(result),
+            cudaMemcpyDeviceToHost,
+            simstate.stream
+        ), "copying kinetic energy to host");
+        check_cuda(cudaStreamSynchronize(simstate.stream), "synchronizing kinetic energy stream");
+        return result;
+    }
 }

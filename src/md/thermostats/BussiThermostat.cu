@@ -1,15 +1,19 @@
 #include <md/thermostats/BussiThermostat.cuh>
 
+#include <md/core/State.hpp>
 #include <md/core/constant.h>
-#include <md/thermostats/KinEnergyCalculator.cuh>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
-#include <md/core/State.cuh>
-#include <md/utils/compute.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.hpp>
+#include <md/thermostats/KinEnergyCalculator.hpp>
 
-#include <thrust/transform_reduce.h>
-#include <thrust/iterator/counting_iterator.h>
+#include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace {
+    __global__ void initialize_random_state(curandState* state, unsigned long long seed) {
+        curand_init(seed, 0, 0, state);
+    }
+    
     // Marsaglia and Tsang's Method (https://daannoordenbos.github.io/gamma-sampling/ を参考に書きました。)
     __device__ float generate_gamma(
         curandState* state, 
@@ -55,61 +59,70 @@ namespace {
         *scaling_factor = sqrtf(alpha2);
     }
 
-    __global__ void init_curand(
-        curandState* state, 
-        unsigned long long seed
-    ) {
-        curand_init(seed, 1, 0, state);
+    __global__ void scale_velocities(
+        md::DeviceVec3 velocity, int atom_count, const float* scaling_factor) {
+        const int index = blockIdx.x * blockDim.x + threadIdx.x;
+        if (index >= atom_count) {
+            return;
+        }
+
+        const float scale = *scaling_factor;
+        velocity.x[index] *= scale;
+        velocity.y[index] *= scale;
+        velocity.z[index] *= scale;
+    }
+}
+
+namespace md::thermostats {
+    BussiThermostat::BussiThermostat(float tau, TemperatureScheduler* scheduler)
+        : tau_(tau), scheduler_(scheduler) {
+        if (!std::isfinite(tau_) || tau_ <= 0.0f) {
+            throw std::invalid_argument("Bussi thermostat tau must be finite and positive");
+        }
+        if (scheduler_ == nullptr) {
+            throw std::invalid_argument("Bussi thermostat requires a temperature scheduler");
+        }
+
+        cudaMalloc(&scaling_factor_, sizeof(float));
+        cudaMalloc(&curand_state_, sizeof(curandState));
     }
 
-    struct Scaling {
-        dfloat3 vel;
-        float* scaling_factor;
-        Scaling(dfloat3 _vel, float* _sf) : vel(_vel), scaling_factor(_sf) {}
-        __device__ void operator() (int idx) {
-            auto sf = *scaling_factor;
-            vel.x[idx] *= sf;
-            vel.y[idx] *= sf;
-            vel.z[idx] *= sf;
-        }
-    };
-}
+    BussiThermostat::~BussiThermostat() {
+        cudaFree(curand_state_);
+        cudaFree(scaling_factor_);
+    }
 
-using namespace md::thermostats;
+    void BussiThermostat::init(State* state, SimState& simstate, unsigned long long seed) {
+        this->atom_count_ = state->n_atoms;
+        this->degrees_of_freedom_ = 3 * atom_count_;
+        this->calculator_ = std::make_unique<KinEnergyCalculator>(state);
 
-void BussiThermostat::init(State& state, unsigned long long seed) {
-    this->dof = 3 * state.n_atoms;
-    this->calculator = std::make_unique<KinEnergyCalculator>(state);
+        initialize_random_state<<<1, 1, 0, simstate.stream>>>(curand_state_, seed);
+    }
 
-    init_curand<<<1, 1>>>(
-        this->curand_state, 
-        seed
-    );
-}
+    void BussiThermostat::stepOne(State*, SimState&) {
+        // 何もしない
+    }
 
-void BussiThermostat::stepTwo(State& state) {
-    this->scheduler->get_temperature(state);    
-    calculator->calc_kinetic_energy(state);
+    void BussiThermostat::stepTwo(State* state, SimState& simstate) {
+        scheduler_->get_temperature(state, simstate);
+        calculator_->calc_kinetic_energy(state, simstate);
 
-    // スケーリング要素を計算
-    calc_scaling_factor<<<1, 1, 0, state.stream>>>(
-        state.kinetic_energy, 
-        this->scaling_factor, 
-        this->curand_state, 
-        this->dof, 
-        1.0f / tau, 
-        boltzmann_constant, 
-        state.dt
-    );
+        calc_scaling_factor<<<1, 1, 0, simstate.stream>>>(
+            calculator_->device_kinetic_energy(),
+            scaling_factor_,
+            curand_state_, 
+            degrees_of_freedom_, 
+            1.0f / tau_, 
+            boltzmann_constant, 
+            simstate.dt
+        );
 
-    // スケーリング
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream), 
-        thrust::make_counting_iterator<size_t>(0), 
-        thrust::make_counting_iterator<size_t>(state.n_atoms), 
-        Scaling(
-            state.vel, 
-            this->scaling_factor
-        )
-    ); 
+        const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
+        scale_velocities<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
+            state->vel, 
+            atom_count_, 
+            scaling_factor_
+        );
+    }
 }
