@@ -1,29 +1,30 @@
-#include <md/thermostats/NHC1.cuh>
+#include <md/thermostats/NHC1.hpp>
 
-#include <md/core/State.cuh>
-#include <md/utils/compute.cuh>
+#include <md/core/State.hpp>
 #include <md/core/constant.h>
-#include <md/thermostats/KinEnergyCalculator.cuh>
-#include <md/temperature_schedulers/TemperatureScheduler.cuh>
+#include <md/temperature_schedulers/TemperatureScheduler.hpp>
+#include <md/thermostats/KinEnergyCalculator.hpp>
 
-#include <thrust/iterator/counting_iterator.h>
 #include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace {
     __global__ void update_mass (
-        float *mass, 
+        md::thermostats::NHC1ChainState* chain, 
         float tau, 
         float boltzmann_constant, 
         float dof
     ) {
-        *mass = tau * tau * boltzmann_constant * md::c_target_temperature * dof;
+        chain->mass = tau * tau * boltzmann_constant * md::c_target_temperature * dof;
     }
 
-    __global__ void calc_scaling_factor (
-        float *kinetic_energy, 
-        ChainState c_state, 
-        float dt, 
-        float dof, 
+    __global__ void calc_scaling_factor(
+        const float* kinetic_energy,
+        md::thermostats::NHC1ChainState* chain,
+        float dt,
+        float tau,
+        int degrees_of_freedom,
         float boltzmann_constant
     ) {
         if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -31,12 +32,12 @@ namespace {
             auto dt_half = 0.5f * dt;
             auto dt_quarter = 0.25f * dt;
 
-            auto f0 = *c_state.force;
-            auto v0 = *c_state.vel;
-            auto p0 = *c_state.pos;
-            auto m0_inv = 1.0f / *c_state.mass;
+            auto f0 = chain->force;
+            auto v0 = chain->velocity;
+            auto p0 = chain->position;
+            auto m0_inv = 1.0f / chain->mass;
 
-            auto targ_kin = md::c_target_temperature * dof * boltzmann_constant;
+            auto targ_kin = md::c_target_temperature * degrees_of_freedom * boltzmann_constant;
 
             // 逆順の更新
             f0 = (AKIN - targ_kin) * m0_inv;
@@ -54,92 +55,85 @@ namespace {
             v0 += dt_quarter * f0;
 
             // グローバルメモリに書き込み
-            *c_state.force = f0;
-            *c_state.vel = v0;
-            *c_state.pos = p0;
-            *c_state.scaling_factor = sf;
+            chain->force = f0;
+            chain->velocity = v0;
+            chain->position = p0;
+            chain->scaling_factor = sf;
         }
     }
 
-    struct Scaling {
-        dfloat3 vel;
-        float* scaling_factor;
-        Scaling(dfloat3 _vel, float* _sf) : vel(_vel), scaling_factor(_sf) {}
-        __device__ void operator() (size_t idx) {
-            auto sf = *scaling_factor;
-            vel.x[idx] *= sf;
-            vel.y[idx] *= sf;
-            vel.z[idx] *= sf;
+    __global__ void scale_velocities(
+        md::DeviceVec3 velocity,
+        int atom_count,
+        const md::thermostats::NHC1ChainState* chain
+    ) {
+        const int index = blockIdx.x * blockDim.x + threadIdx.x;
+        if (index >= atom_count) return;
+
+        const float scaling = chain->scaling_factor;
+        velocity.x[index] *= scaling;
+        velocity.y[index] *= scaling;
+        velocity.z[index] *= scaling;
+    }
+}
+
+namespace md::thermostats {
+    NHC1::NHC1(float tau, TemperatureScheduler* scheduler)
+        : tau_(tau), scheduler_(scheduler) {
+        if (!std::isfinite(tau_) || tau_ <= 0.0f) {
+            throw std::invalid_argument("NHC1 tau must be finite and positive");
         }
-    };
-}
+        if (scheduler_ == nullptr) {
+            throw std::invalid_argument("NHC1 requires a temperature scheduler");
+        }
+        cudaMalloc(&chain_state_, sizeof(NHC1ChainState));
+    }
 
-using namespace md::thermostats;
+    NHC1::~NHC1() {
+        cudaFree(chain_state_);
+    }
 
-NHC1::NHC1(const float _tau, TemperatureScheduler *_scheduler)
- :  tau(_tau), scheduler(_scheduler) {
-    cudaMalloc(&c_state.pos, sizeof(float));
-    cudaMalloc(&c_state.vel, sizeof(float));
-    cudaMalloc(&c_state.force, sizeof(float));
-    cudaMalloc(&c_state.mass, sizeof(float));
-    cudaMalloc(&c_state.scaling_factor, sizeof(float));
-}
+    void NHC1::init(State* state, SimState& simstate) {
+        atom_count_ = state->n_atoms;
+        degrees_of_freedom_ = 3 * atom_count_;
+        calculator_ = std::make_unique<KinEnergyCalculator>(state);
+        cudaMemsetAsync(chain_state_, 0, sizeof(*chain_state_), simstate.stream);
+    }
 
-NHC1::~NHC1() {
-    cudaFree(c_state.pos);
-    cudaFree(c_state.vel);
-    cudaFree(c_state.force);
-    cudaFree(c_state.mass);
-    cudaFree(c_state.scaling_factor);
-}
+    void NHC1::stepOne(State* state, SimState& simstate) {
+        apply(state, simstate);
+    }
 
-void NHC1::init(State& state) {
-    this->dof = 3.0f * state.n_atoms;
-    this->calculator = std::make_unique<KinEnergyCalculator>(state);
+    void NHC1::stepTwo(State* state, SimState& simstate) {
+        apply(state, simstate);
+    }
 
-    float zero = 0.0f;
-    cudaMemcpy(c_state.pos, &zero, sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(c_state.vel, &zero, sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(c_state.force, &zero, sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(c_state.mass, &zero, sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(c_state.scaling_factor, &zero, sizeof(float), cudaMemcpyHostToDevice);
-}
+    void NHC1::apply(State* state, SimState& simstate) {
+        scheduler_->get_temperature(state, simstate);
 
-void NHC1::stepOne(State& state) {
-    op(state);
-}
+        update_mass<<<1, 1, 0, simstate.stream>>>(
+            chain_state_, 
+            tau_, 
+            boltzmann_constant, 
+            degrees_of_freedom_
+        );
 
-void NHC1::stepTwo(State& state) {
-    op(state);
-}
+        calculator_->calc_kinetic_energy(state, simstate);
 
-void NHC1::op(State& state) {
-    auto N = state.n_atoms;
-    this->scheduler->get_temperature(state);
-    update_mass<<<1, 1, 0, state.stream>>>(
-        c_state.mass, 
-        tau, 
-        boltzmann_constant, 
-        dof
-    );
+        calc_scaling_factor<<<1, 1, 0, simstate.stream>>>(
+            calculator_->device_kinetic_energy(),
+            chain_state_,
+            simstate.dt,
+            tau_,
+            degrees_of_freedom_,
+            boltzmann_constant
+        );
 
-    calculator->calc_kinetic_energy(state);
-    
-    calc_scaling_factor<<<1, 1, 0, state.stream>>>(
-        state.kinetic_energy, 
-        this->c_state, 
-        state.dt, 
-        dof, 
-        boltzmann_constant
-    );
-
-    thrust::for_each(
-        thrust::cuda::par_nosync.on(state.stream),  
-        thrust::make_counting_iterator<size_t>(0), 
-        thrust::make_counting_iterator<size_t>(N), 
-        Scaling(
-            state.vel, 
-            c_state.scaling_factor
-        )
-    );
+        const int blocks = (atom_count_ + NUM_THREADS - 1) / NUM_THREADS;
+        scale_velocities<<<blocks, NUM_THREADS, 0, simstate.stream>>>(
+            state->vel, 
+            atom_count_, 
+            chain_state_
+        );
+    }
 }
