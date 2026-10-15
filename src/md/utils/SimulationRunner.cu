@@ -9,8 +9,8 @@
 #include <md/temperature_schedulers/TemperatureScheduler.hpp>
 #include <md/thermostats/Thermostat.cuh>
 #include <md/neighbour/NeighbourList.hpp>
-// #include <md/convergence_checkers/ConvChecker.hpp>
-// #include <md/energy_minimizers/EnergyMinimizer.hpp>
+#include <md/convergence_checkers/ConvChecker.hpp>
+#include <md/energy_minimizers/EnergyMinimizer.hpp>
 
 #include <md/core/constant.h>
 #include <md/core/Simulator.hpp>
@@ -18,7 +18,6 @@
 #include <md/integrators/ConstantVolumeLJ.hpp>
 #include <md/interactions/LJPotential.hpp>
 #include <md/interactions/NNP.hpp>
-// #include <md/interactions/NNP.hpp>
 #include <md/integrators/LangevinIntegrator.cuh>
 #include <md/integrators/LangevinIntegratorLJ.cuh>
 #include <md/observers/LinearEnergiesObserver.hpp>
@@ -30,13 +29,8 @@
 #include <md/thermostats/BussiThermostat.cuh>
 #include <md/temperature_schedulers/ConstantScheduler.hpp>
 #include <md/temperature_schedulers/LinearScheduler.hpp>
-// #include <md/observers/LinearExportTrajectory.hpp>
-// #include <md/observers/LogExportTrajectory.hpp>
-// #include <md/observers/TargetTemperatureExporter.hpp>
-// #include <md/observers/LogplusStrideExportTrajectory.hpp>
-// #include <md/convergence_checkers/MaxNorm.hpp>
-// #include <md/energy_minimizers/FireMinimizer.hpp>
-// #include <md/thermostats/KinEnergyCalculator.hpp>
+#include <md/convergence_checkers/MaxNorm.hpp>
+#include <md/energy_minimizers/FireMinimizer.hpp>
 #include <md/observers/TrajectoryExporter.hpp>
 #include <md/neighbour/CellList.hpp>
 #include <md/neighbour/CellListNoGraph.hpp>
@@ -134,14 +128,11 @@ void SimulationRunner::run() {
                 state.get(), *simstate, interaction.get(), integrator.get(), observer.get(), *cell
             );
 
-            // LinearScheduler reads the host-side current step while a graph is
-            // captured.  Re-capture one MD step at a time so its temperature is
-            // refreshed; constant-temperature and NVE runs keep the fast path.
             const float simulation_time = s_setting.at("simulation_time").get<float>();
             const int log_step = s_setting.value("log_step", 10000);
             simulator.run(simulation_time, use_graphs, log_step);
 
-        } /*else if (step.contains("minimize")) {
+        } else if (step.contains("minimize")) {
             json mi_setting = step.at("minimize");
             // チェッカーの初期化
             this->build_checker(mi_setting.at("checker"));
@@ -158,7 +149,7 @@ void SimulationRunner::run() {
             std::cout << "かかった時間：" << elapsed_s << "s" << std::endl;
             
         } 
-        */ 
+
         else {
             throw std::runtime_error("stepキーワードが未知です。");
         }
@@ -467,4 +458,43 @@ void SimulationRunner::build_interaction(const json& i_setting) {
         );
 
      } else throw std::runtime_error("未対応のpotential typeです: " + p_type);
+}
+
+void SimulationRunner::build_checker(const json& ch_setting) {
+    string type = ch_setting.value("type", "max_norm");
+
+    if (type == "max_norm") {
+        float threshold = ch_setting.at("threshold").get<float>();
+        this->checker = std::make_unique<md::convergence_checkers::MaxNorm>(threshold);
+    } else {
+        throw std::runtime_error("未定義のcheckerです。");
+    }
+}
+
+void SimulationRunner::build_minimizer(const json& mi_setting) {
+    string type = mi_setting.value("type", "fire");
+
+    if (type == "fire") {
+        auto fire = std::make_unique<md::energy_minimizers::FireMinimizer>(state.get(), *simstate, cell.get(), interaction.get(), observer.get(), checker.get());
+        if (!(mi_setting.at("params") == "default")) {
+            auto p_setting = mi_setting.at("params");
+            fire->set_hyper_parameters(
+                p_setting.at("n_max"), 
+                p_setting.at("n_delay"), 
+                p_setting.at("n_neg_max"), 
+                p_setting.at("dt_start"), 
+                p_setting.at("t_max"), 
+                p_setting.at("t_min"), 
+                p_setting.at("f_inc"), 
+                p_setting.at("f_dec"), 
+                p_setting.at("alpha_start"), 
+                p_setting.at("f_alpha"), 
+                p_setting.at("initialdelay")
+            );
+        }
+
+        minimizer = std::move(fire);
+    } else {
+        throw std::runtime_error("未定義のminimizerです。");
+    }
 }

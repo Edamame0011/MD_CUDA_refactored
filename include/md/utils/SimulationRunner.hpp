@@ -18,8 +18,8 @@ namespace md {
     class CellList;
     class TemperatureScheduler;
     class Thermostat;
-//    class ConvChecker;
-//    class EnergyMinimizer;
+    class ConvChecker;
+    class EnergyMinimizer;
 }
 
 namespace md::utils {
@@ -45,8 +45,8 @@ namespace md::utils {
             std::unique_ptr<TemperatureScheduler> scheduler;
             std::unique_ptr<Thermostat> thermostat;
 
-//            std::unique_ptr<ConvChecker> checker;
-//            std::unique_ptr<EnergyMinimizer> minimizer;
+            std::unique_ptr<ConvChecker> checker;
+            std::unique_ptr<EnergyMinimizer> minimizer;
 
             std::array<std::array<float, 3>, 3> lattice;
             std::mt19937 mt;
