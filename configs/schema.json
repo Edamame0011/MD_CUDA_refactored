@@ -1,0 +1,1077 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MDシミュレーション設定",
+    "description": "SimulationRunner.cuが読み込む設定。MDと最小化を順番に実行します。",
+    "$comment": "既定値はGUIの入力初期値です。jsonschema検証は欠損値を補完しません。既存例にあるcell、cell_type、sortは現在のランナーが参照しないため編集項目には含めません。原子種数に依存する一般の配列長、入力ファイル・モデルとの整合性、温度スケジュールの終値は別途確認してください。",
+    "type": "object",
+    "required": [
+        "meta",
+        "common_settings",
+        "steps"
+    ],
+    "properties": {
+        "meta": {
+            "type": "object",
+            "title": "全体の設定",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "title": "出力のルートパス",
+                    "minLength": 1,
+                    "default": "tests/default"
+                },
+                "unit": {
+                    "type": "string",
+                    "title": "単位系",
+                    "enum": [
+                        "lj",
+                        "metal"
+                    ],
+                    "default": "lj"
+                },
+                "seed": {
+                    "type": "integer",
+                    "title": "初期配置・初期速度の乱数シード",
+                    "default": 12345,
+                    "minimum": -2147483648,
+                    "maximum": 2147483647,
+                    "description": "負の値を指定するとstd::random_deviceでシードを生成します。"
+                }
+            },
+            "required": [
+                "name"
+            ]
+        },
+        "common_settings": {
+            "type": "object",
+            "title": "共通設定",
+            "properties": {
+                "atoms": {
+                    "type": "object",
+                    "title": "系の設定",
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "title": "初期配置の設定",
+                            "enum": [
+                                "generate_binary_lj",
+                                "from_file"
+                            ],
+                            "default": "generate_binary_lj"
+                        },
+                        "symbol": {
+                            "type": "array",
+                            "title": "原子種の記号（種ID順）",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "default": [
+                                "X",
+                                "Y"
+                            ],
+                            "minItems": 1,
+                            "uniqueItems": true,
+                            "description": "生成時はA種・B種の順に2要素。XYZ読込時はファイルに含まれる原子番号の昇順に記号を指定します。"
+                        }
+                    },
+                    "required": [
+                        "mode",
+                        "symbol"
+                    ],
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {
+                                    "mode": {
+                                        "const": "generate_binary_lj"
+                                    }
+                                },
+                                "required": [
+                                    "mode"
+                                ]
+                            },
+                            "then": {
+                                "properties": {
+                                    "symbol": {
+                                        "minItems": 2,
+                                        "maxItems": 2
+                                    },
+                                    "n_atoms": {
+                                        "type": "integer",
+                                        "title": "粒子数",
+                                        "default": 1000,
+                                        "minimum": 1,
+                                        "maximum": 2147483647
+                                    },
+                                    "density": {
+                                        "type": "number",
+                                        "title": "数密度",
+                                        "default": 1.2,
+                                        "exclusiveMinimum": 0
+                                    },
+                                    "ratio": {
+                                        "type": "array",
+                                        "title": "A粒子とB粒子の割合",
+                                        "items": {
+                                            "type": "number",
+                                            "minimum": 0
+                                        },
+                                        "default": [
+                                            0.8,
+                                            0.2
+                                        ],
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "contains": {
+                                            "type": "number",
+                                            "exclusiveMinimum": 0
+                                        },
+                                        "description": "先頭2要素の和で正規化します。少なくとも一方を正の値にしてください。"
+                                    }
+                                },
+                                "required": [
+                                    "n_atoms",
+                                    "density",
+                                    "ratio"
+                                ]
+                            }
+                        },
+                        {
+                            "if": {
+                                "properties": {
+                                    "mode": {
+                                        "const": "from_file"
+                                    }
+                                },
+                                "required": [
+                                    "mode"
+                                ]
+                            },
+                            "then": {
+                                "properties": {
+                                    "format": {
+                                        "type": "string",
+                                        "title": "ファイルのフォーマット",
+                                        "enum": [
+                                            "xyz"
+                                        ],
+                                        "default": "xyz"
+                                    },
+                                    "path": {
+                                        "type": "string",
+                                        "title": "XYZ構造ファイルのパス",
+                                        "minLength": 1,
+                                        "default": "./data/sample.xyz",
+                                        "description": "Latticeコメントを含むXYZを読み込みます。パスは実行時の作業ディレクトリを基準に解釈されます。"
+                                    }
+                                },
+                                "required": [
+                                    "path"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "interactions": {
+                    "type": "object",
+                    "title": "相互作用の設定",
+                    "properties": {
+                        "cell_list": {
+                            "type": "boolean",
+                            "title": "セルリストを用いる",
+                            "default": false
+                        },
+                        "use_graph": {
+                            "title": "CUDA Graphsの設定",
+                            "default": 0,
+                            "description": "0で無効。正の整数は1つのグラフにまとめる積分ステップ数です。旧設定のfalse/trueも0/1として受理されます。",
+                            "oneOf": [
+                                {
+                                    "type": "integer",
+                                    "title": "グラフあたりのステップ数",
+                                    "default": 0,
+                                    "minimum": 0,
+                                    "maximum": 2147483647
+                                },
+                                {
+                                    "type": "boolean",
+                                    "title": "旧形式の有効・無効",
+                                    "default": false
+                                }
+                            ]
+                        },
+                        "neighbour_list": {
+                            "type": "object",
+                            "title": "隣接リストの設定",
+                            "properties": {
+                                "cutoff": {
+                                    "type": "array",
+                                    "title": "ペア毎のカットオフ距離",
+                                    "items": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                    },
+                                    "default": [
+                                        1.5,
+                                        2.0,
+                                        2.0,
+                                        1.5
+                                    ],
+                                    "minItems": 1,
+                                    "description": "原子種数の2乗個を、種i×原子種数+種jの順に並べます。2成分系はAA, AB, BA, BBの4要素です。"
+                                },
+                                "margin": {
+                                    "type": "number",
+                                    "title": "マージン距離",
+                                    "default": 0.7,
+                                    "minimum": 0,
+                                    "description": "省略時のランナー既定値は1.0です。"
+                                },
+                                "max_neighbours": {
+                                    "type": "integer",
+                                    "title": "1粒子あたりの最大隣接粒子数",
+                                    "default": 256,
+                                    "minimum": 1,
+                                    "maximum": 2147483647,
+                                    "description": "省略時のランナー既定値は100です。必要な隣接数以上の容量を指定してください。"
+                                }
+                            },
+                            "required": [
+                                "cutoff"
+                            ]
+                        },
+                        "potentials": {
+                            "type": "object",
+                            "title": "ポテンシャルの設定",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "title": "ポテンシャル",
+                                    "enum": [
+                                        "lennard_jones",
+                                        "NNP"
+                                    ],
+                                    "default": "lennard_jones"
+                                }
+                            },
+                            "allOf": [
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "type": {
+                                                "const": "lennard_jones"
+                                            }
+                                        }
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "numbers": {
+                                                "type": "array",
+                                                "title": "原子種の識別番号",
+                                                "items": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 2147483647
+                                                },
+                                                "default": [
+                                                    0,
+                                                    1
+                                                ],
+                                                "minItems": 1,
+                                                "uniqueItems": true,
+                                                "description": "現在のランナーは配列の長さをLJの原子種数として使用します。系の原子種数に合わせてください。"
+                                            },
+                                            "sigma": {
+                                                "type": "array",
+                                                "title": "LJパラメータ σ",
+                                                "items": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0
+                                                },
+                                                "default": [
+                                                    1.0,
+                                                    0.8,
+                                                    0.8,
+                                                    0.88
+                                                ],
+                                                "minItems": 1,
+                                                "description": "原子種数の2乗個を、種i×原子種数+種jの順に並べます。2成分系はAA, AB, BA, BBの4要素です。"
+                                            },
+                                            "epsilon": {
+                                                "type": "array",
+                                                "title": "LJパラメータ ε",
+                                                "items": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                },
+                                                "default": [
+                                                    1.0,
+                                                    1.5,
+                                                    1.5,
+                                                    0.5
+                                                ],
+                                                "minItems": 1,
+                                                "description": "原子種数の2乗個を、種i×原子種数+種jの順に並べます。2成分系はAA, AB, BA, BBの4要素です。"
+                                            },
+                                            "cutoff": {
+                                                "type": "array",
+                                                "title": "LJポテンシャルのカットオフ距離",
+                                                "items": {
+                                                    "type": "number",
+                                                    "exclusiveMinimum": 0
+                                                },
+                                                "default": [
+                                                    1.5,
+                                                    2.0,
+                                                    2.0,
+                                                    1.5
+                                                ],
+                                                "minItems": 1,
+                                                "description": "原子種数の2乗個を、種i×原子種数+種jの順に並べます。2成分系はAA, AB, BA, BBの4要素です。"
+                                            }
+                                        },
+                                        "required": [
+                                            "numbers",
+                                            "sigma",
+                                            "epsilon",
+                                            "cutoff"
+                                        ]
+                                    }
+                                },
+                                {
+                                    "if": {
+                                        "properties": {
+                                            "type": {
+                                                "const": "NNP"
+                                            }
+                                        },
+                                        "required": [
+                                            "type"
+                                        ]
+                                    },
+                                    "then": {
+                                        "properties": {
+                                            "cutoff": {
+                                                "type": "number",
+                                                "title": "NNPのカットオフ距離",
+                                                "default": 5.0,
+                                                "exclusiveMinimum": 0
+                                            },
+                                            "max_edges": {
+                                                "type": "integer",
+                                                "title": "系全体の最大エッジ数",
+                                                "default": 100000,
+                                                "minimum": 1,
+                                                "maximum": 2147483647
+                                            },
+                                            "model_path": {
+                                                "type": "string",
+                                                "title": "NNPモデルのパス",
+                                                "minLength": 1,
+                                                "default": "./models/Na2O-SiO2_aoti.pt2"
+                                            }
+                                        },
+                                        "required": [
+                                            "cutoff",
+                                            "max_edges",
+                                            "model_path"
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "neighbour_list",
+                        "potentials"
+                    ]
+                }
+            },
+            "required": [
+                "atoms",
+                "interactions"
+            ]
+        },
+        "steps": {
+            "type": "array",
+            "title": "実行ステップ一覧",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "title": "実行ステップ",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "ステップ名（出力サブディレクトリ）",
+                        "minLength": 1,
+                        "default": "run"
+                    },
+                    "observer": {
+                        "type": "object",
+                        "title": "出力設定",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "title": "出力の種類",
+                                "enum": [
+                                    "linear",
+                                    "log",
+                                    "linear_trajectory",
+                                    "log_trajectory"
+                                ],
+                                "default": "linear"
+                            }
+                        },
+                        "allOf": [
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "linear"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "properties": {
+                                        "interval": {
+                                            "type": "integer",
+                                            "title": "エネルギー出力間隔（ステップ数）",
+                                            "default": 1000,
+                                            "minimum": 1,
+                                            "maximum": 2147483647
+                                        },
+                                        "output_path": {
+                                            "type": "string",
+                                            "title": "エネルギー出力ファイル",
+                                            "minLength": 1,
+                                            "default": "observer_output"
+                                        }
+                                    },
+                                    "required": [
+                                        "interval"
+                                    ]
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "log"
+                                        }
+                                    },
+                                    "required": [
+                                        "type"
+                                    ]
+                                },
+                                "then": {
+                                    "properties": {
+                                        "divisions": {
+                                            "type": "integer",
+                                            "title": "対数出力の1桁あたり分割数",
+                                            "default": 9,
+                                            "minimum": 1,
+                                            "maximum": 2147483647
+                                        },
+                                        "output_path": {
+                                            "type": "string",
+                                            "title": "エネルギー出力ファイル",
+                                            "minLength": 1,
+                                            "default": "observer_output.txt"
+                                        }
+                                    },
+                                    "required": [
+                                        "divisions"
+                                    ]
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "linear_trajectory"
+                                        }
+                                    },
+                                    "required": [
+                                        "type"
+                                    ]
+                                },
+                                "then": {
+                                    "properties": {
+                                        "interval": {
+                                            "type": "integer",
+                                            "title": "軌跡出力間隔（ステップ数）",
+                                            "default": 1000,
+                                            "minimum": 1,
+                                            "maximum": 2147483647
+                                        },
+                                        "is_unwrap": {
+                                            "type": "boolean",
+                                            "title": "周期境界をまたいだ座標を展開する",
+                                            "default": false
+                                        },
+                                        "output_path": {
+                                            "type": "string",
+                                            "title": "軌跡出力ファイル",
+                                            "minLength": 1,
+                                            "default": "observer_output.xyz"
+                                        }
+                                    },
+                                    "required": [
+                                        "interval",
+                                        "is_unwrap"
+                                    ]
+                                }
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "type": {
+                                            "const": "log_trajectory"
+                                        }
+                                    },
+                                    "required": [
+                                        "type"
+                                    ]
+                                },
+                                "then": {
+                                    "properties": {
+                                        "divisions": {
+                                            "type": "integer",
+                                            "title": "対数出力の1桁あたり分割数",
+                                            "default": 9,
+                                            "minimum": 1,
+                                            "maximum": 2147483647
+                                        },
+                                        "is_unwrap": {
+                                            "type": "boolean",
+                                            "title": "周期境界をまたいだ座標を展開する",
+                                            "default": false
+                                        },
+                                        "output_path": {
+                                            "type": "string",
+                                            "title": "軌跡出力ファイル",
+                                            "minLength": 1,
+                                            "default": "observer_output.xyz"
+                                        },
+                                        "temp_path": {
+                                            "type": "string",
+                                            "title": "出力時刻の記録ファイル",
+                                            "minLength": 1,
+                                            "default": "observer_temp.txt"
+                                        }
+                                    },
+                                    "required": [
+                                        "divisions",
+                                        "is_unwrap"
+                                    ]
+                                }
+                            }
+                        ],
+                        "description": "出力パスはmeta.name / ステップ名からの相対パスです。現在実装されている4種類のみを選択できます。"
+                    },
+                    "step": {
+                        "type": "string",
+                        "title": "MDステップカウンタ",
+                        "enum": [
+                            "",
+                            "reset"
+                        ],
+                        "default": "",
+                        "description": "空文字列は前のMDから継続、resetはMD開始時にカウンタを0に戻します。最小化ではこの設定は参照されません。"
+                    },
+                    "save_last_structure": {
+                        "type": "object",
+                        "title": "終了時の構造保存",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "title": "保存先のXYZファイル",
+                                "minLength": 1,
+                                "default": "last_structure.xyz"
+                            },
+                            "is_unwrap": {
+                                "type": "boolean",
+                                "title": "周期境界をまたいだ座標を展開する",
+                                "default": false
+                            }
+                        },
+                        "x-ui-optional": true
+                    }
+                },
+                "required": [
+                    "name",
+                    "observer"
+                ],
+                "oneOf": [
+                    {
+                        "title": "MDの時間発展",
+                        "properties": {
+                            "simulation": {
+                                "type": "object",
+                                "title": "MDシミュレーション設定",
+                                "properties": {
+                                    "dt": {
+                                        "type": "number",
+                                        "title": "時間刻み幅",
+                                        "default": 0.005,
+                                        "exclusiveMinimum": 0,
+                                        "description": "選択した単位系で指定します。"
+                                    },
+                                    "simulation_time": {
+                                        "type": "number",
+                                        "title": "シミュレーション時間",
+                                        "default": 5000.0,
+                                        "exclusiveMinimum": 0
+                                    },
+                                    "log_step": {
+                                        "type": "integer",
+                                        "title": "進捗ログの出力間隔（ステップ数）",
+                                        "default": 10000,
+                                        "minimum": 1,
+                                        "maximum": 2147483647
+                                    },
+                                    "ensemble": {
+                                        "type": "object",
+                                        "title": "アンサンブル設定",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "title": "アンサンブル",
+                                                "enum": [
+                                                    "NVE",
+                                                    "NVT"
+                                                ],
+                                                "default": "NVE"
+                                            },
+                                            "temperature": {
+                                                "type": "number",
+                                                "title": "初期温度／熱浴の設定温度",
+                                                "default": 2.0,
+                                                "minimum": 0,
+                                                "description": "最初のMDステップの速度初期化に使用します。NVTでは熱浴の設定温度としても使用します。"
+                                            }
+                                        },
+                                        "required": [
+                                            "temperature"
+                                        ],
+                                        "allOf": [
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "type": {
+                                                            "const": "NVT"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "type"
+                                                    ]
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "temperature": {
+                                                            "exclusiveMinimum": 0
+                                                        },
+                                                        "thermostat": {
+                                                            "type": "string",
+                                                            "title": "熱浴",
+                                                            "enum": [
+                                                                "Bussi",
+                                                                "Nose-Hoover",
+                                                                "Langevin"
+                                                            ],
+                                                            "default": "Bussi"
+                                                        },
+                                                        "scheduler": {
+                                                            "type": "string",
+                                                            "title": "熱浴の温度制御方法",
+                                                            "enum": [
+                                                                "constant",
+                                                                "linear"
+                                                            ],
+                                                            "default": "constant"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "type": {
+                                                            "const": "NVT"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "type"
+                                                    ]
+                                                },
+                                                "then": {
+                                                    "allOf": [
+                                                        {
+                                                            "if": {
+                                                                "properties": {
+                                                                    "thermostat": {
+                                                                        "const": "Bussi"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "thermostat"
+                                                                ]
+                                                            },
+                                                            "then": {
+                                                                "properties": {
+                                                                    "tau": {
+                                                                        "type": "number",
+                                                                        "title": "Bussi熱浴の緩和時間 τ",
+                                                                        "default": 0.02,
+                                                                        "exclusiveMinimum": 0,
+                                                                        "description": "省略時のランナー既定値は1.0です。"
+                                                                    },
+                                                                    "seed": {
+                                                                        "type": "integer",
+                                                                        "title": "熱浴の乱数シード",
+                                                                        "default": 12345,
+                                                                        "minimum": 0,
+                                                                        "maximum": 18446744073709551615
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "if": {
+                                                                "properties": {
+                                                                    "thermostat": {
+                                                                        "const": "Nose-Hoover"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "then": {
+                                                                "properties": {
+                                                                    "tau": {
+                                                                        "type": "number",
+                                                                        "title": "Nose-Hoover熱浴の緩和時間 τ",
+                                                                        "default": 1.0,
+                                                                        "exclusiveMinimum": 0
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "if": {
+                                                                "properties": {
+                                                                    "thermostat": {
+                                                                        "const": "Langevin"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "thermostat"
+                                                                ]
+                                                            },
+                                                            "then": {
+                                                                "properties": {
+                                                                    "tau": {
+                                                                        "type": "number",
+                                                                        "title": "Langevin熱浴の緩和時間 τ",
+                                                                        "default": 1.0,
+                                                                        "exclusiveMinimum": 0,
+                                                                        "description": "摩擦係数gammaは1/tauとして計算されます。"
+                                                                    },
+                                                                    "seed": {
+                                                                        "type": "integer",
+                                                                        "title": "熱浴の乱数シード",
+                                                                        "default": 12345,
+                                                                        "minimum": 0,
+                                                                        "maximum": 18446744073709551615
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "if": {
+                                                                "properties": {
+                                                                    "scheduler": {
+                                                                        "const": "linear"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "scheduler"
+                                                                ]
+                                                            },
+                                                            "then": {
+                                                                "properties": {
+                                                                    "rate_per_unit_time": {
+                                                                        "type": "number",
+                                                                        "title": "単位時間あたりの温度変化",
+                                                                        "default": -0.001,
+                                                                        "description": "負で冷却、正で加熱。温度はtemperature + rate_per_unit_time × dt × 累積ステップ数です。必要に応じてステップカウンタをリセットしてください。"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "rate_per_unit_time"
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "dt",
+                                    "simulation_time",
+                                    "ensemble"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "simulation"
+                        ],
+                        "not": {
+                            "required": [
+                                "minimize"
+                            ]
+                        }
+                    },
+                    {
+                        "title": "エネルギー最小化",
+                        "properties": {
+                            "minimize": {
+                                "type": "object",
+                                "title": "エネルギー最小化設定",
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "title": "最小化手法",
+                                        "enum": [
+                                            "fire"
+                                        ],
+                                        "default": "fire"
+                                    },
+                                    "checker": {
+                                        "type": "object",
+                                        "title": "収束判定",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "title": "収束判定の種類",
+                                                "enum": [
+                                                    "max_norm"
+                                                ],
+                                                "default": "max_norm"
+                                            },
+                                            "threshold": {
+                                                "type": "number",
+                                                "title": "原子に働く力の最大ノルムの閾値",
+                                                "default": 1e-12,
+                                                "exclusiveMinimum": 0
+                                            }
+                                        },
+                                        "required": [
+                                            "threshold"
+                                        ]
+                                    },
+                                    "params": {
+                                        "title": "FIREハイパーパラメータ",
+                                        "default": "default",
+                                        "oneOf": [
+                                            {
+                                                "type": "string",
+                                                "title": "実装の既定値を使用",
+                                                "const": "default"
+                                            },
+                                            {
+                                                "type": "object",
+                                                "title": "FIREパラメータを手動設定",
+                                                "properties": {
+                                                    "n_max": {
+                                                        "type": "integer",
+                                                        "title": "最大反復回数",
+                                                        "default": 5000,
+                                                        "minimum": 1,
+                                                        "maximum": 2147483647
+                                                    },
+                                                    "n_delay": {
+                                                        "type": "integer",
+                                                        "title": "時間刻みを増加させるまでの遅延回数",
+                                                        "default": 20,
+                                                        "minimum": 0,
+                                                        "maximum": 2147483647
+                                                    },
+                                                    "n_neg_max": {
+                                                        "type": "integer",
+                                                        "title": "負のパワーが連続する最大回数",
+                                                        "default": 2000,
+                                                        "minimum": 1,
+                                                        "maximum": 2147483647
+                                                    },
+                                                    "dt_start": {
+                                                        "type": "number",
+                                                        "title": "初期時間刻み",
+                                                        "default": 0.005,
+                                                        "exclusiveMinimum": 0
+                                                    },
+                                                    "t_max": {
+                                                        "type": "number",
+                                                        "title": "時間刻み上限の倍率",
+                                                        "default": 5.0,
+                                                        "minimum": 1
+                                                    },
+                                                    "t_min": {
+                                                        "type": "number",
+                                                        "title": "時間刻み下限の倍率",
+                                                        "default": 0.02,
+                                                        "exclusiveMinimum": 0,
+                                                        "maximum": 1
+                                                    },
+                                                    "f_inc": {
+                                                        "type": "number",
+                                                        "title": "時間刻みの増加率",
+                                                        "default": 1.1,
+                                                        "exclusiveMinimum": 1
+                                                    },
+                                                    "f_dec": {
+                                                        "type": "number",
+                                                        "title": "時間刻みの減少率",
+                                                        "default": 0.5,
+                                                        "exclusiveMinimum": 0,
+                                                        "exclusiveMaximum": 1
+                                                    },
+                                                    "alpha_start": {
+                                                        "type": "number",
+                                                        "title": "初期混合係数 α",
+                                                        "default": 0.25,
+                                                        "minimum": 0,
+                                                        "maximum": 1
+                                                    },
+                                                    "f_alpha": {
+                                                        "type": "number",
+                                                        "title": "混合係数の減衰率",
+                                                        "default": 0.99,
+                                                        "exclusiveMinimum": 0,
+                                                        "maximum": 1
+                                                    },
+                                                    "initialdelay": {
+                                                        "type": "boolean",
+                                                        "title": "初期遅延中の時間刻み減少を抑制する",
+                                                        "default": true
+                                                    }
+                                                },
+                                                "required": [
+                                                    "n_max",
+                                                    "n_delay",
+                                                    "n_neg_max",
+                                                    "dt_start",
+                                                    "t_max",
+                                                    "t_min",
+                                                    "f_inc",
+                                                    "f_dec",
+                                                    "alpha_start",
+                                                    "f_alpha",
+                                                    "initialdelay"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "checker",
+                                    "params"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "minimize"
+                        ],
+                        "not": {
+                            "required": [
+                                "simulation"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "common_settings": {
+                        "properties": {
+                            "atoms": {
+                                "properties": {
+                                    "mode": {
+                                        "const": "generate_binary_lj"
+                                    }
+                                },
+                                "required": [
+                                    "mode"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "atoms"
+                        ]
+                    }
+                },
+                "required": [
+                    "common_settings"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "common_settings": {
+                        "properties": {
+                            "interactions": {
+                                "properties": {
+                                    "neighbour_list": {
+                                        "properties": {
+                                            "cutoff": {
+                                                "minItems": 4,
+                                                "maxItems": 4
+                                            }
+                                        }
+                                    },
+                                    "potentials": {
+                                        "allOf": [
+                                            {
+                                                "if": {
+                                                    "properties": {
+                                                        "type": {
+                                                            "const": "lennard_jones"
+                                                        }
+                                                    }
+                                                },
+                                                "then": {
+                                                    "properties": {
+                                                        "numbers": {
+                                                            "minItems": 2,
+                                                            "maxItems": 2
+                                                        },
+                                                        "sigma": {
+                                                            "minItems": 4,
+                                                            "maxItems": 4
+                                                        },
+                                                        "epsilon": {
+                                                            "minItems": 4,
+                                                            "maxItems": 4
+                                                        },
+                                                        "cutoff": {
+                                                            "minItems": 4,
+                                                            "maxItems": 4
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
