@@ -13,6 +13,23 @@ from PySide6.QtWidgets import (
 
 _MISSING = object()
 
+from PySide6.QtWidgets import QDoubleSpinBox
+
+
+class FlexibleDoubleSpinBox(QDoubleSpinBox):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setDecimals(15)
+        self.setRange(-1e10, 1e10)
+
+    def textFromValue(self, value):
+        # 小数点以下4桁で表現できる場合
+        if abs(value - round(value, 2)) < 1e-14:
+            return f"{value:.2f}"
+
+        # それ以外は必要な桁数を表示
+        return f"{value:.15f}".rstrip("0").rstrip(".")
 
 def merge_schema(left, right):
     """Combine presentation constraints; final validation uses the original schema."""
@@ -278,9 +295,7 @@ class SchemaForm(QWidget):
             widget = QSpinBox()
             widget.setRange(prop.get("minimum", -2147483648), prop.get("maximum", 2147483647))
         elif field_type == "number":
-            widget = QDoubleSpinBox()
-            widget.setDecimals(12)
-            widget.setRange(prop.get("minimum", -1e100), prop.get("maximum", 1e100))
+            widget = FlexibleDoubleSpinBox()
         elif field_type == "boolean":
             widget = QCheckBox()
         else:
