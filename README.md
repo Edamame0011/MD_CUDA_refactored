@@ -53,3 +53,10 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 ./build/MD_MLP <configファイルへのパス> --/common_settings/atoms/n_atoms=1000
 ```
 などとすれば、設定ファイルの値に関わらず粒子数=1000でシミュレーションを行います。
+
+# Third-Party Libraries
+This project uses the following third-party library:
+
+- **[nlohmann/json](https://github.com/nlohmann/json)**  
+  Copyright (c) 2013–2026 Niels Lohmann  
+  Licensed under the [MIT License](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT).
