@@ -46,7 +46,7 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 
 また、実行時引数で設定ファイルの特定の値を変更できます。
 ```
-./build/MD_MLP <configファイルへのパス> --<キー名>=<値>
+./build/MD_MLP <configファイルへのパス> --key=value
 ```
 のようにします。例えば、
 ```
