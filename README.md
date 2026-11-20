@@ -6,19 +6,18 @@
 - NVIDIA CUDA Toolkit
 
 # ビルド
-必要なパッケージをインストールした仮想環境を有効化しておく。
+必要なパッケージをインストールした仮想環境を有効化しておきます。
 
-ルートディレクトリで、以下のコマンドを実行
+ルートディレクトリで、以下のコマンドを実行します。
 ```
-cmake -B build \
+cmake -S . -B build \
   -D CMAKE_CUDA_COMPILER=<nvccへのパス> \
   -D CMAKE_CUDA_ARCHITECTURES=<対象のGPUのCompute Capability> \
   -D CMAKE_PREFIX_PATH="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
-  -D Python3/ROOT_DIR="$CONDA_PREFIX" \
-  .
+  -D Python3/ROOT_DIR="$CONDA_PREFIX"
 ```
 
-その後、以下のコマンドを実行
+続いて、以下のコマンドでビルドします。
 ```
 cmake --build build --parallel 8
 ```
@@ -36,7 +35,7 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 
 # シミュレーションの実行
 ```
-./build/MD_MLP <configファイルへのパス>
+./build/MD_MLP <設定ファイルのパス>
 ```
 でシミュレーションが実行されます。
 
@@ -44,15 +43,14 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 また、標準出力には現在のステップ数と残り時間が出力されます。
 出力の間隔は/steps/simulation/log_stepプロパティで変更できます。
 
-また、実行時引数で設定ファイルの特定の値を変更できます。
+また、コマンドライン引数を指定することで、設定ファイル内の値を実行時に上書きできます。
 ```
-./build/MD_MLP <configファイルへのパス> --key=value
+./build/MD_MLP <設定ファイルのパス> --key=value
 ```
-のようにします。例えば、
+例えば、以下のコマンドでは、設定ファイルの /common_settings/atoms/n_atoms の値を上書きし、粒子数を1000に設定してシミュレーションを実行します。
 ```
-./build/MD_MLP <configファイルへのパス> --/common_settings/atoms/n_atoms=1000
+./build/MD_MLP <設定ファイルのパス> --/common_settings/atoms/n_atoms=1000
 ```
-などとすれば、設定ファイルの値に関わらず粒子数=1000でシミュレーションを行います。
 
 # Third-Party Libraries
 This project uses the following third-party library:
