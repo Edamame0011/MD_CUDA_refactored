@@ -1,4 +1,4 @@
-# Requirements
+# 環境
 - CMake >= 3.18
 - python 3.11
 - PyTorch 2.6.0
