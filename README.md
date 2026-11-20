@@ -1,5 +1,6 @@
 # Requirements
 - CMake >= 3.18
+- python 3.11
 - PyTorch 2.6.0
 - CUDA 12.2
 - NVIDIA CUDA Toolkit
