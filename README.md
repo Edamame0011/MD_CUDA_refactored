@@ -51,6 +51,10 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 ```
 ./build/MD_MLP <設定ファイルのパス> --/common_settings/atoms/n_atoms=1000
 ```
+複数の値を上書きする事もできます。
+```
+./build/MD_MLP <設定ファイルのパス> --key1=value1 --key2=value2 --key3=value3
+```
 
 # Third-Party Libraries
 This project uses the following third-party library:
