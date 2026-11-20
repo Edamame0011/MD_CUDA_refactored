@@ -25,7 +25,7 @@ namespace md {
 namespace md::utils {
     class SimulationRunner {
         public:
-            SimulationRunner(const std::string& setting_path);
+            SimulationRunner(const std::string& setting_path, const std::vector<std::string>& overrides);
             ~SimulationRunner();
 
             void run();

@@ -54,11 +54,46 @@ namespace fs = std::filesystem;
 using string = std::string;
 using json = nlohmann::json;
 
-SimulationRunner::SimulationRunner(const string& setting_path) {
+SimulationRunner::SimulationRunner(const string& setting_path, const std::vector<std::string>& overrides) {
     // jsonのロード
     std::ifstream f(setting_path);
     if (!f.is_open()) throw std::runtime_error("jsonファイルを開けません。" );
     this->j = json::parse(f);
+
+    // 引数による上書き
+    for (const auto& arg: overrides) {
+        if (arg.rfind("--", 0) != 0) {
+            throw std::invalid_argument("不正な引数: " + arg);
+        }
+
+        size_t pos = arg.find('=');
+        if (pos == string::npos) {
+            throw std::invalid_argument("不正な引数: " + arg);
+        }
+
+        // "="からの相対位置でkeyとvalueを取得
+        std::string key = arg.substr(2, pos - 2);
+        std::string value = arg.substr(pos + 1);
+
+        if (key.empty()) {
+            throw std::invalid_argument("不正な引数: " + arg);
+        }
+
+        if (key[0] != '/') key = "/" + key;
+        json& target = j.at(json::json_pointer(key));
+
+        if (target.is_string()) {
+            target = value;
+        } else {
+            json parsed = json::parse(value);
+
+            if (target.type() != parsed.type() && !(target.is_number() && parsed.is_number())) {
+                throw std::invalid_argument("型が一致しません: " + key);
+            }
+
+            target = std::move(parsed);
+        }
+    }
 
     const json& m_setting = j.at("meta");
     const json& c_setting = j.at("common_settings");
@@ -68,11 +103,11 @@ SimulationRunner::SimulationRunner(const string& setting_path) {
     fs::create_directories(parent_dir);
 
     // 親ディレクトリにjsonをコピーしておく
-    fs::copy_file(
-        setting_path, 
-        parent_dir / "setting.json", 
-        fs::copy_options::overwrite_existing
-    );
+    std::ofstream out(parent_dir / "setting.json");
+    if (!out.is_open()) {
+        throw std::runtime_error("設定ファイルを保存できません。");
+    }
+    out << j.dump(4) << std::endl;
     
     // 乱数の初期化
     int rand_seed = m_setting.value("seed", 12345);
