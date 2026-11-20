@@ -1,9 +1,8 @@
 # Requirements
 - CMake >= 3.18
-- NVIDIA CUDA Toolkit
-- Python 3
 - PyTorch 2.6.0
 - CUDA 12.2
+- NVIDIA CUDA Toolkit
 
 # ビルド
 必要なパッケージをインストールした仮想環境を有効化しておく。
