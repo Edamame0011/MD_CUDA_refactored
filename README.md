@@ -11,7 +11,7 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 
 # シミュレーションの実行
 ```
-./build/MD_MLP <configファイルへのパス>
+<実行ファイルへのパス> <configファイルへのパス>
 ```
 でシミュレーションが実行されます。
 
@@ -21,6 +21,6 @@ configs/以下にあるスキーマ（schema.json）や設定ファイルの例�
 
 また、実行時引数で設定ファイルの特定の値を変更できます。例えば、
 ```
-./build/MD_MLP <configファイルへのパス> --/common_settings/atoms/n_atoms=1000
+<実行ファイルへのパス> <configファイルへのパス> --/common_settings/atoms/n_atoms=1000
 ```
 などとすれば、設定ファイルの値に関わらず粒子数=1000でシミュレーションを行います。
