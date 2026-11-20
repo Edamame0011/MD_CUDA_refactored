@@ -14,7 +14,7 @@ cmake -S . -B build \
   -D CMAKE_CUDA_COMPILER=<nvccへのパス> \
   -D CMAKE_CUDA_ARCHITECTURES=<対象のGPUのCompute Capability> \
   -D CMAKE_PREFIX_PATH="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')" \
-  -D Python3/ROOT_DIR="$CONDA_PREFIX"
+  -D Python3_ROOT_DIR="$CONDA_PREFIX"
 ```
 
 続いて、以下のコマンドでビルドします。
